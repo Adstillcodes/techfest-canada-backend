@@ -14,29 +14,73 @@ import adminRoutes from "./routes/admin.js";
 
 const app = express();
 
-app.use(cors());
+/* ==========================================
+   CORS CONFIG (DEV + PROD)
+========================================== */
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://techfest-canada-frontend.vercel.app"
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("CORS not allowed"), false);
+      }
+    },
+    credentials: true,
+  })
+);
+
+/* ==========================================
+   STRIPE WEBHOOK (RAW BODY REQUIRED)
+========================================== */
+
 app.use("/api/webhook", webhookRoutes);
+
+/* ==========================================
+   JSON PARSER
+========================================== */
+
 app.use(express.json());
+
+/* ==========================================
+   ROUTES
+========================================== */
+
 app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/auth", authRoutes);
 
-app.use(cors({
-  origin: "https://techfest-canada-frontend.vercel.app",
-  credentials: true
-}));
-// 🔥 MongoDB connect
+/* ==========================================
+   HEALTH CHECK
+========================================== */
+
+app.get("/", (req, res) => {
+  res.send("🚀 TechFest API running");
+});
+
+/* ==========================================
+   DATABASE
+========================================== */
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB error:", err));
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-app.get("/", (req, res) => {
-  res.send("API running");
-});
+/* ==========================================
+   SERVER START
+========================================== */
 
-app.listen(process.env.PORT || 5000, () => {
-  console.log("🚀 Server running");
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
