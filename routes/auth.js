@@ -96,6 +96,11 @@ router.post("/google", async (req, res) => {
     });
 
     const payload = ticket.getPayload();
+
+    if (!payload?.email) {
+      return res.status(400).json({ error: "Invalid Google token" });
+    }
+
     const { email, name } = payload;
 
     let user = await User.findOne({ email });
@@ -108,19 +113,20 @@ router.post("/google", async (req, res) => {
       });
     }
 
-   const token = jwt.sign(
-  {
-    id: user._id,
-    email: user.email,
-    role: user.role || "user",
-  },
-  process.env.JWT_SECRET,
-  { expiresIn: "7d" }
-);
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role || "user",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     res.json({ token, user });
+
   } catch (err) {
-    console.error("GOOGLE AUTH ERROR:", err);
+    console.error("GOOGLE AUTH ERROR:", err.message, err.stack);
     res.status(500).json({ error: "Google authentication failed" });
   }
 });
