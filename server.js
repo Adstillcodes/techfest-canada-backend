@@ -20,8 +20,15 @@ const app = express();
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://techfest-canada-frontend.vercel.app"
+  "https://techfest-canada-frontend.vercel.app",
 ];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+  })
+);
 
 app.use(
   cors({
