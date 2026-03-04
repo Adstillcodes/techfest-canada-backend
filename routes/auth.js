@@ -86,6 +86,10 @@ router.post("/google", async (req, res) => {
   try {
     const { credential } = req.body;
 
+    if (!credential) {
+      return res.status(400).json({ error: "Google credential missing" });
+    }
+
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID,
