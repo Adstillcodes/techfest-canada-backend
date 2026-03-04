@@ -22,6 +22,11 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
+
+app.use(cors({
+  origin: "https://techfest-canada-frontend.vercel.app",
+  credentials: true
+}));
 // 🔥 MongoDB connect
 mongoose
   .connect(process.env.MONGO_URI)
