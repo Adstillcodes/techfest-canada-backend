@@ -130,6 +130,88 @@ router.post("/google", async (req, res) => {
     res.status(500).json({ error: "Google authentication failed" });
   }
 });
+
+// ================= LINKEDIN AUTH =================
+router.get("/linkedin", (req, res) => {
+
+  const redirectUrl =
+    "https://www.linkedin.com/oauth/v2/authorization" +
+    "?response_type=code" +
+    `&client_id=${process.env.LINKEDIN_CLIENT_ID}` +
+    `&redirect_uri=${process.env.BACKEND_URL}/api/auth/linkedin/callback` +
+    "&scope=openid%20profile%20email";
+
+  res.redirect(redirectUrl);
+});
+
+// ================= LINKEDIN CALLBACK =================
+router.get("/linkedin/callback", async (req, res) => {
+  try {
+
+    const { code } = req.query;
+
+    // exchange code for access token
+    const tokenRes = await axios.post(
+      "https://www.linkedin.com/oauth/v2/accessToken",
+      null,
+      {
+        params: {
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: `${process.env.BACKEND_URL}/api/auth/linkedin/callback`,
+          client_id: process.env.LINKEDIN_CLIENT_ID,
+          client_secret: process.env.LINKEDIN_CLIENT_SECRET,
+        },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
+    );
+
+    const accessToken = tokenRes.data.access_token;
+
+    // get user profile
+    const profileRes = await axios.get(
+      "https://api.linkedin.com/v2/userinfo",
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    const { email, name } = profileRes.data;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      user = await User.create({
+        name,
+        email,
+        provider: "linkedin",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role || "user",
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    // redirect back to frontend
+    res.redirect(
+      `${process.env.FRONTEND_URL}/auth-success?token=${token}`
+    );
+
+  } catch (err) {
+    console.error("LINKEDIN AUTH ERROR:", err);
+    res.redirect(`${process.env.FRONTEND_URL}`);
+  }
+});
 // ================= GET CURRENT USER =================
 router.get("/me", async (req, res) => {
   try {
