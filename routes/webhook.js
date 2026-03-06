@@ -4,6 +4,8 @@ import User from "../models/User.js";
 import TicketInventory from "../models/TicketInventory.js";
 import crypto from "crypto";
 
+import { generateTicketPDF } from "../services/pdfTicket.js";
+import { sendTicketEmail } from "../services/emailService.js";
 const router = express.Router();
 
 // ⚠️ raw body required for Stripe
@@ -61,17 +63,21 @@ router.post(
         // ================= CREATE TICKET =================
         const ticketId = crypto.randomBytes(6).toString("hex");
 
-        await User.findByIdAndUpdate(userId, {
-          $push: {
-            tickets: {
-              ticketId,
-              type: tier,
-              purchaseDate: new Date(),
-              checkedIn: false,
-            },
-          },
-        });
+       const user = await User.findById(userId);
 
+const ticket = {
+  ticketId,
+  type: tier,
+  purchaseDate: new Date(),
+  name: user.name
+};
+
+user.tickets.push(ticket);
+await user.save();
+
+const pdf = await generateTicketPDF(ticket);
+
+await sendTicketEmail(user.email, user.name, pdf);
         console.log("✅ Ticket created for user:", userId);
       } catch (err) {
         console.error("❌ Webhook processing failed:", err);

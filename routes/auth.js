@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
+import { sendWelcomeEmail } from "../services/emailService.js";
 import { OAuth2Client } from "google-auth-library";
 import axios from "axios";
 
@@ -30,6 +31,8 @@ router.post("/register", async (req, res) => {
       password: hashed,
       provider: "email",
     });
+
+    await sendWelcomeEmail(email, name);
 
  const token = jwt.sign(
   {
