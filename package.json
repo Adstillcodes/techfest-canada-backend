@@ -1,15 +1,11 @@
 {
   "name": "techfest-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
   "dependencies": {
     "axios": "^1.13.6",
     "bcrypt": "^6.0.0",
@@ -19,10 +15,10 @@
     "google-auth-library": "^10.6.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.3",
-    "nodemailer": "^8.0.1",
     "pdfkit": "^0.17.2",
     "qrcode": "^1.5.4",
-    "stripe": "^20.4.0"
+    "stripe": "^20.4.0",
+    "resend": "^3.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

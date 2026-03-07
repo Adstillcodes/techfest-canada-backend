@@ -1,54 +1,91 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+/* ================= WELCOME EMAIL ================= */
 
 export async function sendWelcomeEmail(email, name) {
-  const mailOptions = {
-    from: `"TechFest Canada" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Welcome to TechFest Canada 🚀",
-    html: `
-      <h2>Welcome ${name}!</h2>
-      <p>We're excited to have you join the TechFest Canada platform.</p>
-      <p>You can now purchase your event pass below.</p>
+  try {
+    await resend.emails.send({
+      from: "TechFest <tickets@techfestcanada.com>",
+      to: email,
+      subject: "Welcome to TechFest Canada 🚀",
+      html: `
+        <h2>Welcome ${name}!</h2>
 
-      <a href="${process.env.FRONTEND_URL}/tickets"
-         style="padding:12px 18px;background:#ff7a00;color:white;text-decoration:none;border-radius:6px;">
-         Buy Your Pass
-      </a>
+        <p>Your account has been created successfully.</p>
 
-      <p>See you at the event! 🚀</p>
-      <p>TechFest Team</p>
-    `
-  };
+        <p>
+          You can now purchase your delegate pass below.
+        </p>
 
-  await transporter.sendMail(mailOptions);
+        <a href="https://techfest-canada-frontend.vercel.app/tickets"
+           style="
+             display:inline-block;
+             padding:12px 22px;
+             background:#8B5CF6;
+             color:white;
+             text-decoration:none;
+             border-radius:6px;
+             font-weight:bold;
+           ">
+           Buy Your Pass
+        </a>
+
+        <br/><br/>
+
+        <p>We look forward to seeing you at TechFest Canada.</p>
+
+        <b>— TechFest Team</b>
+      `
+    });
+
+    console.log("📧 Welcome email sent");
+
+  } catch (err) {
+
+    console.error("❌ Welcome email failed:", err);
+
+  }
 }
 
-export async function sendTicketEmail(email, name, pdfBuffer) {
-  const mailOptions = {
-    from: `"TechFest Canada" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Your TechFest Pass 🎟",
-    html: `
-      <h2>Hello ${name}</h2>
-      <p>Your ticket purchase was successful.</p>
-      <p>Your pass is attached as a PDF.</p>
-      <p>Please bring it to the event for entry.</p>
-    `,
-    attachments: [
-      {
-        filename: "TechFest-Pass.pdf",
-        content: pdfBuffer
-      }
-    ]
-  };
+/* ================= TICKET EMAIL ================= */
 
-  await transporter.sendMail(mailOptions);
+export async function sendTicketEmail(email, name, pdfBuffer) {
+  try {
+
+    await resend.emails.send({
+      from: "TechFest Tickets <tickets@techfestcanada.com>",
+      to: email,
+      subject: "Your TechFest Ticket 🎟️",
+      html: `
+        <h2>Hello ${name},</h2>
+
+        <p>Your ticket purchase has been confirmed.</p>
+
+        <p>
+          Your delegate pass is attached as a PDF.
+        </p>
+
+        <p>Please bring this ticket to the event.</p>
+
+        <br/>
+
+        <b>TechFest Canada</b>
+      `,
+      attachments: [
+        {
+          filename: "techfest-ticket.pdf",
+          content: pdfBuffer
+        }
+      ]
+    });
+
+    console.log("📧 Ticket email sent");
+
+  } catch (err) {
+
+    console.error("❌ Ticket email failed:", err);
+
+  }
 }
