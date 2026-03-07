@@ -114,7 +114,7 @@ router.get("/me", async (req, res) => {
 
 /* ================= FORGOT PASSWORD ================= */
 
-router.post("forgot-password", async (req, res) => {
+router.post("/forgot-password", async (req, res) => {
 
   try {
 
@@ -123,7 +123,7 @@ router.post("forgot-password", async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ error: "User not found" });
+      return res.status(400).json({ message: "Link will be sent to your email if an account with that email exists." });
     }
 
     const token = crypto.randomBytes(32).toString("hex");
