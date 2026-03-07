@@ -114,7 +114,7 @@ router.get("/me", async (req, res) => {
 
 /* ================= FORGOT PASSWORD ================= */
 
-router.post("/api/auth/forgot-password", async (req, res) => {
+router.post("forgot-password", async (req, res) => {
 
   try {
 
