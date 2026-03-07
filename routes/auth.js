@@ -1,8 +1,10 @@
 import express from "express";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import { sendWelcomeEmail } from "../services/emailService.js";
+import { sendPasswordResetEmail } from "../services/emailService.js";
 import { OAuth2Client } from "google-auth-library";
 import axios from "axios";
 
@@ -67,6 +69,89 @@ router.post("/login", async (req, res) => {
     if (!match) {
       return res.status(400).json({ error: "Invalid credentials" });
     }
+
+router.post("/forgot-password", async (req, res) => {
+
+  try {
+
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.json({ message: "If the email exists, a reset link was sent." });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+    user.resetPasswordToken = hashedToken;
+
+    user.resetPasswordExpires = Date.now() + 1000 * 60 * 30;
+
+    await user.save();
+
+    const resetURL =
+      `${process.env.FRONTEND_URL}/reset-password/${token}`;
+
+    await sendPasswordResetEmail(user.email, user.name, resetURL);
+
+    res.json({ message: "Reset email sent" });
+
+  } catch (err) {
+
+    console.error("FORGOT PASSWORD ERROR:", err);
+
+    res.status(500).json({ error: "Server error" });
+
+  }
+
+});
+
+router.post("/reset-password/:token", async (req, res) => {
+
+  try {
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(req.params.token)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        error: "Invalid or expired reset token"
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+
+    user.password = hashedPassword;
+
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    res.json({ message: "Password updated successfully" });
+
+  } catch (err) {
+
+    console.error("RESET PASSWORD ERROR:", err);
+
+    res.status(500).json({ error: "Server error" });
+
+  }
+
+});
 
 const token = jwt.sign(
   {
