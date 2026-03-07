@@ -6,6 +6,7 @@ import crypto from "crypto";
 
 import { generateTicketPDF } from "../services/pdfTicket.js";
 import { sendTicketEmail } from "../services/emailService.js";
+import { sendResetPasswordEmail } from "../services/emailService.js";
 const router = express.Router();
 
 // ⚠️ raw body required for Stripe
