@@ -9,58 +9,67 @@ export async function sendWelcomeEmail(email, name) {
   try {
 
     await resend.emails.send({
-      from: "TechFest <onboarding@resend.dev>",
+      from: "TechFest Canada <noreply@techfestcanada.com>",
       to: email,
       subject: "Welcome to TechFest Canada 🚀",
+
       html: `
         <h2>Welcome ${name}!</h2>
 
-        <p>Your account has been created successfully.</p>
+        <p>Thank you for joining TechFest Canada.</p>
 
-        <a href="https://techfest-canada-frontend.vercel.app/tickets"
-        style="padding:12px 20px;background:#8B5CF6;color:white;border-radius:6px;text-decoration:none;">
-        Buy Your Pass
+        <p>You can now purchase your delegate pass below:</p>
+
+        <a href="${process.env.FRONTEND_URL}/tickets"
+        style="
+        display:inline-block;
+        padding:12px 20px;
+        background:#8b5cf6;
+        color:white;
+        border-radius:6px;
+        text-decoration:none;
+        ">
+        Get Your Pass
         </a>
 
-        <p>— TechFest Team</p>
+        <p style="margin-top:20px;">
+        We look forward to seeing you in Toronto.
+        </p>
       `
     });
 
-    console.log("📧 Welcome email sent");
+    console.log("Welcome email sent");
 
   } catch (err) {
 
-    console.error("❌ Welcome email failed:", err);
+    console.error("WELCOME EMAIL ERROR:", err);
 
   }
-
 }
 
 /* ================= PASSWORD RESET EMAIL ================= */
 
-export async function sendPasswordResetEmail(email, name, resetURL) {
+export async function sendResetPasswordEmail(email, resetLink) {
 
   try {
 
     await resend.emails.send({
-
-      from: "TechFest Support <onboarding@resend.dev>",
-
+      from: "TechFest Canada <noreply@techfestcanada.com>",
       to: email,
-
-      subject: "Reset your TechFest password",
+      subject: "Reset your password",
 
       html: `
-        <h2>Hello ${name}</h2>
+        <h2>Password Reset Request</h2>
 
-        <p>You requested a password reset.</p>
+        <p>You requested to reset your password.</p>
 
-        <p>Click the button below to reset your password:</p>
+        <p>Click the button below to create a new password:</p>
 
-        <a href="${resetURL}"
+        <a href="${resetLink}"
         style="
+        display:inline-block;
         padding:12px 20px;
-        background:#8B5CF6;
+        background:#f97316;
         color:white;
         border-radius:6px;
         text-decoration:none;
@@ -68,60 +77,17 @@ export async function sendPasswordResetEmail(email, name, resetURL) {
         Reset Password
         </a>
 
-        <p>This link expires in 30 minutes.</p>
-
-        <p>If you did not request this, ignore this email.</p>
+        <p style="margin-top:20px;">
+        If you did not request this, you can safely ignore this email.
+        </p>
       `
-
     });
 
-    console.log("📧 Reset email sent");
+    console.log("Reset password email sent");
 
   } catch (err) {
 
-    console.error("❌ Reset email failed:", err);
+    console.error("RESET EMAIL ERROR:", err);
 
   }
-
-}
-
-/* ================= TICKET EMAIL ================= */
-
-export async function sendTicketEmail(email, name, pdfBuffer) {
-
-  try {
-
-    await resend.emails.send({
-
-      from: "TechFest Tickets <onboarding@resend.dev>",
-
-      to: email,
-
-      subject: "Your TechFest Ticket 🎟️",
-
-      html: `
-        <h2>Hello ${name}</h2>
-
-        <p>Your ticket purchase has been confirmed.</p>
-
-        <p>Your delegate pass is attached as a PDF.</p>
-      `,
-
-      attachments: [
-        {
-          filename: "techfest-ticket.pdf",
-          content: pdfBuffer
-        }
-      ]
-
-    });
-
-    console.log("📧 Ticket email sent");
-
-  } catch (err) {
-
-    console.error("❌ Ticket email failed:", err);
-
-  }
-
 }
