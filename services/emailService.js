@@ -6,20 +6,41 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendWelcomeEmail(email, name) {
   try {
-
-    console.log("📨 Attempting welcome email to:", email);
-
-    const response = await resend.emails.send({
+    await resend.emails.send({
       from: "TechFest <onboarding@resend.dev>",
       to: email,
       subject: "Welcome to TechFest Canada 🚀",
       html: `
         <h2>Welcome ${name}!</h2>
+
         <p>Your account has been created successfully.</p>
+
+        <p>
+          You can now purchase your delegate pass below.
+        </p>
+
+        <a href="https://techfest-canada-frontend.vercel.app/tickets"
+           style="
+             display:inline-block;
+             padding:12px 22px;
+             background:#8B5CF6;
+             color:white;
+             text-decoration:none;
+             border-radius:6px;
+             font-weight:bold;
+           ">
+           Buy Your Pass
+        </a>
+
+        <br/><br/>
+
+        <p>We look forward to seeing you at TechFest Canada.</p>
+
+        <b>— TechFest Team</b>
       `
     });
 
-    console.log("✅ Resend response:", response);
+    console.log("📧 Welcome email sent");
 
   } catch (err) {
 
@@ -33,15 +54,24 @@ export async function sendWelcomeEmail(email, name) {
 export async function sendTicketEmail(email, name, pdfBuffer) {
   try {
 
-    console.log("📨 Sending ticket email to:", email);
-
-    const response = await resend.emails.send({
-      from: "TechFest <onboarding@resend.dev>",
+    await resend.emails.send({
+      from: "TechFest Tickets <onboarding@resend.dev>",
       to: email,
       subject: "Your TechFest Ticket 🎟️",
       html: `
-        <h2>Hello ${name}</h2>
+        <h2>Hello ${name},</h2>
+
         <p>Your ticket purchase has been confirmed.</p>
+
+        <p>
+          Your delegate pass is attached as a PDF.
+        </p>
+
+        <p>Please bring this ticket to the event.</p>
+
+        <br/>
+
+        <b>TechFest Canada</b>
       `,
       attachments: [
         {
@@ -51,7 +81,9 @@ export async function sendTicketEmail(email, name, pdfBuffer) {
       ]
     });
 
-    console.log("✅ Ticket email response:", response);
+    console.log("Sending email to:", email);
+
+    console.log("📧 Ticket email sent");
 
   } catch (err) {
 
