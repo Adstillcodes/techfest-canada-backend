@@ -7,7 +7,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 export async function sendWelcomeEmail(email, name) {
   try {
     await resend.emails.send({
-      from: "TechFest <tickets@techfestcanada.com>",
+      from: "TechFest <onboarding@resend.dev>",
       to: email,
       subject: "Welcome to TechFest Canada 🚀",
       html: `
@@ -55,7 +55,7 @@ export async function sendTicketEmail(email, name, pdfBuffer) {
   try {
 
     await resend.emails.send({
-      from: "TechFest Tickets <tickets@techfestcanada.com>",
+      from: "TechFest Tickets <onboarding@resend.dev>",
       to: email,
       subject: "Your TechFest Ticket 🎟️",
       html: `
