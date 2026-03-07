@@ -81,6 +81,8 @@ export async function sendTicketEmail(email, name, pdfBuffer) {
       ]
     });
 
+    console.log("Sending email to:", email);
+
     console.log("📧 Ticket email sent");
 
   } catch (err) {
