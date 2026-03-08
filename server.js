@@ -21,7 +21,9 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://techfest-canada-frontend.vercel.app",
-   "https://www.thetechfestival.com"
+   "https://www.thetechfestival.com",
+   "https://thetechfestival.com"
+   
 ];
 
 app.use(cors({
