@@ -161,9 +161,17 @@ router.post("/google", async (req, res) => {
 
 router.get("/linkedin", (req, res) => {
 
-  const redirect = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.LINKEDIN_REDIRECT_URI}&scope=r_liteprofile%20r_emailaddress`;
+ const state = crypto.randomBytes(16).toString("hex");
 
-  res.redirect(redirect);
+  const redirectUrl =
+    "https://www.linkedin.com/oauth/v2/authorization" +
+    `?response_type=code` +
+    `&client_id=${process.env.LINKEDIN_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}` +
+    `&scope=r_liteprofile%20r_emailaddress` +
+    `&state=${state}`;
+
+  res.redirect(redirectUrl);
 
 });
 
