@@ -2,6 +2,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
+import axios from "axios";
 
 import User from "../models/User.js";
 import { sendResetPasswordEmail } from "../services/emailService.js";
@@ -11,7 +12,6 @@ const router = express.Router();
 /* ================= REGISTER ================= */
 
 router.post("/register", async (req, res) => {
-
   try {
 
     const { name, email, password } = req.body;
@@ -42,11 +42,11 @@ router.post("/register", async (req, res) => {
   } catch (err) {
 
     console.error("REGISTER ERROR:", err);
-
     res.status(500).json({ error: "Registration failed" });
 
   }
 });
+
 
 /* ================= LOGIN ================= */
 
@@ -79,11 +79,11 @@ router.post("/login", async (req, res) => {
   } catch (err) {
 
     console.error("LOGIN ERROR:", err);
-
     res.status(500).json({ error: "Login failed" });
 
   }
 });
+
 
 /* ================= GET CURRENT USER ================= */
 
@@ -112,6 +112,128 @@ router.get("/me", async (req, res) => {
   }
 });
 
+
+/* ================= GOOGLE LOGIN ================= */
+
+router.post("/google", async (req, res) => {
+
+  try {
+
+    const { credential } = req.body;
+
+    const googleRes = await axios.get(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+    );
+
+    const { email, name } = googleRes.data;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+
+      user = await User.create({
+        name,
+        email,
+        provider: "google"
+      });
+
+    }
+
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.json({ token });
+
+  } catch (err) {
+
+    console.error("GOOGLE AUTH ERROR:", err);
+    res.status(500).json({ error: "Google login failed" });
+
+  }
+
+});
+
+
+/* ================= LINKEDIN AUTH ================= */
+
+router.get("/linkedin", (req, res) => {
+
+  const redirect = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${process.env.LINKEDIN_REDIRECT_URI}&scope=r_liteprofile%20r_emailaddress`;
+
+  res.redirect(redirect);
+
+});
+
+
+router.get("/linkedin/callback", async (req, res) => {
+
+  try {
+
+    const { code } = req.query;
+
+    const tokenRes = await axios.post(
+      "https://www.linkedin.com/oauth/v2/accessToken",
+      null,
+      {
+        params: {
+          grant_type: "authorization_code",
+          code,
+          redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+          client_id: process.env.LINKEDIN_CLIENT_ID,
+          client_secret: process.env.LINKEDIN_CLIENT_SECRET
+        }
+      }
+    );
+
+    const accessToken = tokenRes.data.access_token;
+
+    const profile = await axios.get(
+      "https://api.linkedin.com/v2/me",
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    const emailRes = await axios.get(
+      "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+
+    const email = emailRes.data.elements[0]["handle~"].emailAddress;
+
+    const name = profile.data.localizedFirstName + " " + profile.data.localizedLastName;
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+
+      user = await User.create({
+        name,
+        email,
+        provider: "linkedin"
+      });
+
+    }
+
+    const jwtToken = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    res.redirect(`${process.env.FRONTEND_URL}/auth-success?token=${jwtToken}`);
+
+  } catch (err) {
+
+    console.error("LINKEDIN AUTH ERROR:", err);
+    res.redirect(`${process.env.FRONTEND_URL}/auth-error`);
+
+  }
+
+});
+
+
 /* ================= FORGOT PASSWORD ================= */
 
 router.post("/forgot-password", async (req, res) => {
@@ -123,13 +245,15 @@ router.post("/forgot-password", async (req, res) => {
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(400).json({ message: "Link will be sent to your email if an account with that email exists." });
+      return res.json({
+        message: "If that email exists, a reset link has been sent."
+      });
     }
 
     const token = crypto.randomBytes(32).toString("hex");
 
     user.resetPasswordToken = token;
-    user.resetPasswordExpires = Date.now() + 1000 * 60 * 60; // 1 hour
+    user.resetPasswordExpires = Date.now() + 3600000;
 
     await user.save();
 
@@ -142,11 +266,12 @@ router.post("/forgot-password", async (req, res) => {
   } catch (err) {
 
     console.error("FORGOT PASSWORD ERROR:", err);
-
     res.status(500).json({ error: "Server error" });
 
   }
+
 });
+
 
 /* ================= RESET PASSWORD ================= */
 
@@ -179,10 +304,10 @@ router.post("/reset-password/:token", async (req, res) => {
   } catch (err) {
 
     console.error("RESET PASSWORD ERROR:", err);
-
     res.status(500).json({ error: "Server error" });
 
   }
+
 });
 
 export default router;
