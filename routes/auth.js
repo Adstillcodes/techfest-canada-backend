@@ -183,18 +183,20 @@ router.get("/linkedin/callback", async (req, res) => {
     const { code } = req.query;
 
     const tokenRes = await axios.post(
-      "https://www.linkedin.com/oauth/v2/accessToken",
-      null,
-      {
-        params: {
-          grant_type: "authorization_code",
-          code,
-          redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
-          client_id: process.env.LINKEDIN_CLIENT_ID,
-          client_secret: process.env.LINKEDIN_CLIENT_SECRET
-        }
-      }
-    );
+  "https://www.linkedin.com/oauth/v2/accessToken",
+  new URLSearchParams({
+    grant_type: "authorization_code",
+    code: code,
+    redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+    client_id: process.env.LINKEDIN_CLIENT_ID,
+    client_secret: process.env.LINKEDIN_CLIENT_SECRET
+  }),
+  {
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    }
+  }
+);
 
     const accessToken = tokenRes.data.access_token;
 
