@@ -170,7 +170,7 @@ router.get("/linkedin", (req, res) => {
     `&redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}` +
     "&scope=r_liteprofile%20r_emailaddress" +
     `&state=${state}`;
-
+console.log("LinkedIn auth URL:", linkedinAuthURL);
   res.redirect(linkedinAuthURL);
 
 });
