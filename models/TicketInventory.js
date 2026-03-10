@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const ticketInventorySchema = new mongoose.Schema(
   {
-    // tier name (standard, pro, vip)
+    // tier name
     tier: {
       type: String,
       required: true,
@@ -11,7 +11,7 @@ const ticketInventorySchema = new mongoose.Schema(
       trim: true,
     },
 
-    // total tickets available for this tier
+    // total tickets available
     total: {
       type: Number,
       required: true,
@@ -19,9 +19,17 @@ const ticketInventorySchema = new mongoose.Schema(
       min: 0,
     },
 
-    // how many sold so far
+    // how many sold
     sold: {
       type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    // ticket price for this tier
+    price: {
+      type: Number,
+      required: true,
       default: 0,
       min: 0,
     },
@@ -33,12 +41,12 @@ const ticketInventorySchema = new mongoose.Schema(
 
 /* ================= VIRTUALS ================= */
 
-// remaining tickets (computed)
+// remaining tickets
 ticketInventorySchema.virtual("remaining").get(function () {
   return Math.max(this.total - this.sold, 0);
 });
 
-// prevent negative oversell at DB level
+// prevent oversell
 ticketInventorySchema.pre("save", async function () {
   if (this.sold > this.total) {
     throw new Error("Sold cannot exceed total tickets");
