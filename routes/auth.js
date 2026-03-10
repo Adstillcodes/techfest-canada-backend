@@ -177,8 +177,8 @@ console.log("LinkedIn auth URL:", linkedinAuthURL);
 
 
 router.get("/linkedin/callback", async (req, res) => {
-    console.log("LinkedIn callback query:", req.query);
 
+  console.log("LinkedIn callback query:", req.query);
 
   try {
 
@@ -209,10 +209,10 @@ router.get("/linkedin/callback", async (req, res) => {
 
     const accessToken = tokenRes.data.access_token;
 
-    /* ================= GET LINKEDIN PROFILE ================= */
+    /* ================= GET USER INFO (OpenID) ================= */
 
-    const profileRes = await axios.get(
-      "https://api.linkedin.com/v2/me",
+    const userInfoRes = await axios.get(
+      "https://api.linkedin.com/v2/userinfo",
       {
         headers: {
           Authorization: `Bearer ${accessToken}`
@@ -220,21 +220,7 @@ router.get("/linkedin/callback", async (req, res) => {
       }
     );
 
-    const emailRes = await axios.get(
-      "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
-      }
-    );
-
-    const email = emailRes.data.elements[0]["handle~"].emailAddress;
-
-    const name =
-      profileRes.data.localizedFirstName +
-      " " +
-      profileRes.data.localizedLastName;
+    const { name, email } = userInfoRes.data;
 
     /* ================= FIND OR CREATE USER ================= */
 
@@ -249,6 +235,31 @@ router.get("/linkedin/callback", async (req, res) => {
       });
 
     }
+
+    /* ================= CREATE JWT ================= */
+
+    const token = jwt.sign(
+      { id: user._id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
+
+    /* ================= REDIRECT TO FRONTEND ================= */
+
+    res.redirect(`${process.env.FRONTEND_URL}/auth-success?token=${token}`);
+
+  } catch (err) {
+
+    console.error(
+      "LinkedIn OAuth Error:",
+      err.response?.data || err.message
+    );
+
+    res.redirect(`${process.env.FRONTEND_URL}/auth-error`);
+
+  }
+
+});
 
     /* ================= CREATE JWT ================= */
 
