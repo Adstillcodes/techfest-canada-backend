@@ -189,7 +189,7 @@ router.get("/linkedin/callback", async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/auth-error`);
     }
 
-    /* ================= EXCHANGE CODE FOR ACCESS TOKEN ================= */
+    /* ===== Exchange authorization code for access token ===== */
 
     const tokenRes = await axios.post(
       "https://www.linkedin.com/oauth/v2/accessToken",
@@ -209,7 +209,7 @@ router.get("/linkedin/callback", async (req, res) => {
 
     const accessToken = tokenRes.data.access_token;
 
-    /* ================= GET USER INFO (OpenID) ================= */
+    /* ===== Get LinkedIn user info (OpenID endpoint) ===== */
 
     const userInfoRes = await axios.get(
       "https://api.linkedin.com/v2/userinfo",
@@ -222,21 +222,19 @@ router.get("/linkedin/callback", async (req, res) => {
 
     const { name, email } = userInfoRes.data;
 
-    /* ================= FIND OR CREATE USER ================= */
+    /* ===== Find or create user ===== */
 
     let user = await User.findOne({ email });
 
     if (!user) {
-
       user = await User.create({
         name,
         email,
         provider: "linkedin"
       });
-
     }
 
-    /* ================= CREATE JWT ================= */
+    /* ===== Create JWT ===== */
 
     const token = jwt.sign(
       { id: user._id, role: user.role },
@@ -244,7 +242,7 @@ router.get("/linkedin/callback", async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    /* ================= REDIRECT TO FRONTEND ================= */
+    /* ===== Redirect to frontend ===== */
 
     res.redirect(`${process.env.FRONTEND_URL}/auth-success?token=${token}`);
 
@@ -260,29 +258,6 @@ router.get("/linkedin/callback", async (req, res) => {
   }
 
 });
-
-    /* ================= CREATE JWT ================= */
-
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    /* ================= REDIRECT TO FRONTEND ================= */
-
-    res.redirect(`${process.env.FRONTEND_URL}/auth-success?token=${token}`);
-
-  } catch (err) {
-
-    console.error("LinkedIn OAuth Error:", err.response?.data || err.message);
-
-    res.redirect(`${process.env.FRONTEND_URL}/auth-error`);
-
-  }
-
-});
-
 /* ================= FORGOT PASSWORD ================= */
 
 router.post("/forgot-password", async (req, res) => {
