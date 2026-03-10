@@ -168,7 +168,7 @@ router.get("/linkedin", (req, res) => {
     "?response_type=code" +
     `&client_id=${process.env.LINKEDIN_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}` +
-    "&scope=r_basicprofile" +
+     "&scope=openid%20profile%20email" +
     `&state=${state}`;
 console.log("LinkedIn auth URL:", linkedinAuthURL);
   res.redirect(linkedinAuthURL);
