@@ -177,6 +177,8 @@ router.get("/linkedin", (req, res) => {
 
 
 router.get("/linkedin/callback", async (req, res) => {
+    console.log("LinkedIn callback query:", req.query);
+
 
   try {
 
