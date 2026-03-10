@@ -48,47 +48,35 @@ router.get(
   async (req, res) => {
     try {
 
-      const range = req.query.range || "week";
+      const inventory = await TicketInventory.find();
 
-      let groupFormat;
+      let totalTickets = 0;
+      let totalRevenue = 0;
 
-      if (range === "day") groupFormat = "%Y-%m-%d";
-      if (range === "week") groupFormat = "%Y-%U";
-      if (range === "month") groupFormat = "%Y-%m";
+      const tierStats = [];
 
-      const sales = await User.aggregate([
-        { $unwind: "$tickets" },
+      for (const tier of inventory) {
 
-        {
-          $group: {
-            _id: {
-              $dateToString: {
-                format: groupFormat,
-                date: "$tickets.purchaseDate"
-              }
-            },
-            revenue: { $sum: "$tickets.price" },
-            ticketsSold: { $sum: 1 }
-          }
-        },
+        totalTickets += tier.sold;
 
-        { $sort: { _id: 1 } }
-      ]);
+        const revenue = tier.sold * tier.price;
 
-      const totals = await User.aggregate([
-        { $unwind: "$tickets" },
-        {
-          $group: {
-            _id: null,
-            totalRevenue: { $sum: "$tickets.price" },
-            totalTickets: { $sum: 1 }
-          }
-        }
-      ]);
+        totalRevenue += revenue;
+
+        tierStats.push({
+          tier: tier.tier,
+          sold: tier.sold,
+          revenue: revenue
+        });
+
+      }
 
       res.json({
-        totals: totals[0] || { totalRevenue: 0, totalTickets: 0 },
-        sales
+        totals: {
+          totalRevenue,
+          totalTickets
+        },
+        tiers: tierStats
       });
 
     } catch (err) {
