@@ -161,17 +161,17 @@ router.post("/google", async (req, res) => {
 
 router.get("/linkedin", (req, res) => {
 
- const state = crypto.randomBytes(16).toString("hex");
+  const state = crypto.randomBytes(16).toString("hex");
 
-  const redirectUrl =
+  const linkedinAuthURL =
     "https://www.linkedin.com/oauth/v2/authorization" +
-    `?response_type=code` +
+    "?response_type=code" +
     `&client_id=${process.env.LINKEDIN_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(process.env.LINKEDIN_REDIRECT_URI)}` +
-    `&scope=r_liteprofile%20r_emailaddress` +
+    "&scope=r_liteprofile%20r_emailaddress" +
     `&state=${state}`;
 
-  res.redirect(redirectUrl);
+  res.redirect(linkedinAuthURL);
 
 });
 
@@ -182,37 +182,59 @@ router.get("/linkedin/callback", async (req, res) => {
 
     const { code } = req.query;
 
-    const tokenRes = await axios.post(
-  "https://www.linkedin.com/oauth/v2/accessToken",
-  new URLSearchParams({
-    grant_type: "authorization_code",
-    code: code,
-    redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
-    client_id: process.env.LINKEDIN_CLIENT_ID,
-    client_secret: process.env.LINKEDIN_CLIENT_SECRET
-  }),
-  {
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded"
+    if (!code) {
+      console.error("LinkedIn OAuth failed: missing code");
+      return res.redirect(`${process.env.FRONTEND_URL}/auth-error`);
     }
-  }
-);
+
+    /* ================= EXCHANGE CODE FOR ACCESS TOKEN ================= */
+
+    const tokenRes = await axios.post(
+      "https://www.linkedin.com/oauth/v2/accessToken",
+      new URLSearchParams({
+        grant_type: "authorization_code",
+        code: code,
+        redirect_uri: process.env.LINKEDIN_REDIRECT_URI,
+        client_id: process.env.LINKEDIN_CLIENT_ID,
+        client_secret: process.env.LINKEDIN_CLIENT_SECRET
+      }),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      }
+    );
 
     const accessToken = tokenRes.data.access_token;
 
-    const profile = await axios.get(
+    /* ================= GET LINKEDIN PROFILE ================= */
+
+    const profileRes = await axios.get(
       "https://api.linkedin.com/v2/me",
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
     );
 
     const emailRes = await axios.get(
       "https://api.linkedin.com/v2/emailAddress?q=members&projection=(elements*(handle~))",
-      { headers: { Authorization: `Bearer ${accessToken}` } }
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`
+        }
+      }
     );
 
     const email = emailRes.data.elements[0]["handle~"].emailAddress;
 
-    const name = profile.data.localizedFirstName + " " + profile.data.localizedLastName;
+    const name =
+      profileRes.data.localizedFirstName +
+      " " +
+      profileRes.data.localizedLastName;
+
+    /* ================= FIND OR CREATE USER ================= */
 
     let user = await User.findOne({ email });
 
@@ -226,23 +248,27 @@ router.get("/linkedin/callback", async (req, res) => {
 
     }
 
-    const jwtToken = jwt.sign(
+    /* ================= CREATE JWT ================= */
+
+    const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: "7d" }
     );
 
-    res.redirect(`${process.env.FRONTEND_URL}/auth-success?token=${jwtToken}`);
+    /* ================= REDIRECT TO FRONTEND ================= */
+
+    res.redirect(`${process.env.FRONTEND_URL}/auth-success?token=${token}`);
 
   } catch (err) {
 
-    console.error("LINKEDIN AUTH ERROR:", err);
+    console.error("LinkedIn OAuth Error:", err.response?.data || err.message);
+
     res.redirect(`${process.env.FRONTEND_URL}/auth-error`);
 
   }
 
 });
-
 
 /* ================= FORGOT PASSWORD ================= */
 
