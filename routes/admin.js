@@ -1,5 +1,7 @@
 import express from "express";
 import jwt from "jsonwebtoken";
+import mongoose from "mongoose";
+
 import User from "../models/User.js";
 import TicketInventory from "../models/TicketInventory.js";
 
@@ -33,6 +35,71 @@ const adminMiddleware = (req, res, next) => {
   }
   next();
 };
+
+/* =========================================================
+   📊 SALES ANALYTICS DASHBOARD
+   GET /api/admin/analytics
+========================================================= */
+
+router.get(
+  "/analytics",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+
+      const range = req.query.range || "week";
+
+      let groupFormat;
+
+      if (range === "day") groupFormat = "%Y-%m-%d";
+      if (range === "week") groupFormat = "%Y-%U";
+      if (range === "month") groupFormat = "%Y-%m";
+
+      const sales = await User.aggregate([
+        { $unwind: "$tickets" },
+
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: groupFormat,
+                date: "$tickets.purchaseDate"
+              }
+            },
+            revenue: { $sum: "$tickets.price" },
+            ticketsSold: { $sum: 1 }
+          }
+        },
+
+        { $sort: { _id: 1 } }
+      ]);
+
+      const totals = await User.aggregate([
+        { $unwind: "$tickets" },
+        {
+          $group: {
+            _id: null,
+            totalRevenue: { $sum: "$tickets.price" },
+            totalTickets: { $sum: 1 }
+          }
+        }
+      ]);
+
+      res.json({
+        totals: totals[0] || { totalRevenue: 0, totalTickets: 0 },
+        sales
+      });
+
+    } catch (err) {
+
+      console.error("Analytics error:", err);
+      res.status(500).json({ error: "Server error" });
+
+    }
+  }
+);
+
 /* =========================================================
    👑 PROMOTE USER TO ADMIN
    POST /api/admin/promote
@@ -56,7 +123,6 @@ router.post(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // already admin
       if (user.role === "admin") {
         return res.json({ success: true, message: "User already admin" });
       }
@@ -68,9 +134,12 @@ router.post(
         success: true,
         message: `${email} is now an admin`,
       });
+
     } catch (err) {
+
       console.error("Promote error:", err);
       res.status(500).json({ error: "Server error" });
+
     }
   }
 );
@@ -86,61 +155,77 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
+
       let inventory = await TicketInventory.find().sort({ tier: 1 });
 
-      // 🔥 ensure all tiers exist
       const tiers = ["early", "festival", "vip"];
 
       for (const tier of tiers) {
+
         const exists = inventory.find((i) => i.tier === tier);
 
         if (!exists) {
+
           const newTier = await TicketInventory.create({
             tier,
             total: 0,
             sold: 0,
           });
+
           inventory.push(newTier);
+
         }
+
       }
 
       res.json(inventory);
+
     } catch (err) {
+
       console.error("Inventory fetch error:", err);
       res.status(500).json({ error: "Server error" });
+
     }
   }
 );
 
 /* =========================================================
-   🌐 PUBLIC INVENTORY (NO AUTH)
+   🌐 PUBLIC INVENTORY
    GET /api/admin/inventory/public
 ========================================================= */
 
 router.get("/inventory/public", async (req, res) => {
   try {
+
     let inventory = await TicketInventory.find().sort({ tier: 1 });
 
-    // ensure tiers exist (same safety as admin route)
     const tiers = ["early", "festival", "vip"];
 
     for (const tier of tiers) {
+
       const exists = inventory.find((i) => i.tier === tier);
 
       if (!exists) {
+
         const newTier = await TicketInventory.create({
           tier,
           total: 0,
           sold: 0,
         });
+
         inventory.push(newTier);
+
       }
+
     }
 
     res.json(inventory);
+
   } catch (err) {
+
     console.error("Public inventory error:", err);
     res.status(500).json({ error: "Server error" });
+
   }
 });
 
@@ -155,6 +240,7 @@ router.put(
   adminMiddleware,
   async (req, res) => {
     try {
+
       const { tier } = req.params;
       const { total } = req.body;
 
@@ -164,15 +250,16 @@ router.put(
 
       let inventory = await TicketInventory.findOne({ tier });
 
-      // create if missing
       if (!inventory) {
+
         inventory = new TicketInventory({
           tier,
           total,
           sold: 0,
         });
+
       } else {
-        // 🚨 prevent setting below sold
+
         if (total < inventory.sold) {
           return res.status(400).json({
             error: "Total cannot be less than sold tickets",
@@ -180,6 +267,7 @@ router.put(
         }
 
         inventory.total = total;
+
       }
 
       await inventory.save();
@@ -188,15 +276,18 @@ router.put(
         success: true,
         inventory,
       });
+
     } catch (err) {
+
       console.error("Inventory update error:", err);
       res.status(500).json({ error: "Server error" });
+
     }
   }
 );
 
 /* =========================================================
-   👥 GET ATTENDEES (EXCEL TABLE)
+   👥 GET ATTENDEES
    GET /api/admin/attendees
 ========================================================= */
 
@@ -206,14 +297,18 @@ router.get(
   adminMiddleware,
   async (req, res) => {
     try {
+
       const users = await User.find({
         tickets: { $exists: true, $not: { $size: 0 } },
       }).select("name email tickets");
 
       res.json(users);
+
     } catch (err) {
+
       console.error("Attendees fetch error:", err);
       res.status(500).json({ error: "Server error" });
+
     }
   }
 );
@@ -229,13 +324,13 @@ router.post(
   adminMiddleware,
   async (req, res) => {
     try {
+
       const { ticketId } = req.body;
 
       if (!ticketId) {
         return res.status(400).json({ error: "Ticket ID required" });
       }
 
-      // find user with this ticket
       const user = await User.findOne({
         "tickets.ticketId": ticketId,
       });
@@ -254,7 +349,6 @@ router.post(
         });
       }
 
-      // mark checked in
       ticket.checkedIn = true;
       await user.save();
 
@@ -264,9 +358,12 @@ router.post(
         ticketId: ticket.ticketId,
         type: ticket.type,
       });
+
     } catch (err) {
+
       console.error("Check-in error:", err);
       res.status(500).json({ error: "Server error" });
+
     }
   }
 );
