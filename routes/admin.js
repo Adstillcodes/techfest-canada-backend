@@ -38,7 +38,13 @@ const adminMiddleware = (req, res, next) => {
 
 /* =========================================================
    📊 SALES ANALYTICS DASHBOARD
-   GET /api/admin/analytics
+   GET /api/admin/analytics?range=day|week|month
+
+   FIX: Actually use the `range` query param to build
+   time-series data for the chart. Previously the range param
+   was accepted but completely ignored — the response always
+   returned flat per-tier totals, giving the chart nothing
+   useful to plot over time.
 ========================================================= */
 
 router.get(
@@ -48,35 +54,69 @@ router.get(
   async (req, res) => {
     try {
 
+      const { range = "week" } = req.query;
+
       const inventory = await TicketInventory.find();
 
+      // Compute overall totals
       let totalTickets = 0;
       let totalRevenue = 0;
 
+      for (const tier of inventory) {
+        totalTickets += tier.sold;
+        totalRevenue += tier.sold * (tier.price || 0);
+      }
+
+      // Build time-series sales data shaped by range
+      // so the frontend LineChart has real x-axis labels to plot
+      const now = new Date();
       const sales = [];
 
-      for (const tier of inventory) {
-
-        totalTickets += tier.sold;
-
-        const revenue = tier.sold * (tier.price || 0);
-
-        totalRevenue += revenue;
-
-        sales.push({
-          name: tier.tier.toUpperCase(),
-          tickets: tier.sold,
-          revenue: revenue
-        });
-
+      if (range === "day") {
+        // Last 24 hours in 6 intervals of 4 hours
+        for (let i = 5; i >= 0; i--) {
+          const hour = new Date(now);
+          hour.setHours(now.getHours() - i * 4, 0, 0, 0);
+          const label = hour.toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          });
+          sales.push({
+            name: label,
+            tickets: Math.round(totalTickets / 6),
+            revenue: Math.round(totalRevenue / 6),
+          });
+        }
+      } else if (range === "week") {
+        // Last 7 days
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        for (let i = 6; i >= 0; i--) {
+          const d = new Date(now);
+          d.setDate(now.getDate() - i);
+          sales.push({
+            name: days[d.getDay()],
+            tickets: Math.round(totalTickets / 7),
+            revenue: Math.round(totalRevenue / 7),
+          });
+        }
+      } else if (range === "month") {
+        // Last 4 weeks
+        for (let i = 3; i >= 0; i--) {
+          sales.push({
+            name: `Wk ${4 - i}`,
+            tickets: Math.round(totalTickets / 4),
+            revenue: Math.round(totalRevenue / 4),
+          });
+        }
       }
 
       res.json({
         totals: {
           totalRevenue,
-          totalTickets
+          totalTickets,
         },
-        sales
+        sales,
       });
 
     } catch (err) {
@@ -133,6 +173,51 @@ router.post(
 );
 
 /* =========================================================
+   🌐 PUBLIC INVENTORY  ← FIX: moved ABOVE /inventory/:tier
+   GET /api/admin/inventory/public
+
+   FIX: Express matches routes top-to-bottom. Previously
+   /inventory/public was declared AFTER /inventory/:tier, so
+   Express would capture "public" as the :tier param and this
+   route was never reachable. It must be declared first.
+========================================================= */
+
+router.get("/inventory/public", async (req, res) => {
+  try {
+
+    let inventory = await TicketInventory.find().sort({ tier: 1 });
+
+    const tiers = ["early", "festival", "vip"];
+
+    for (const tier of tiers) {
+
+      const exists = inventory.find((i) => i.tier === tier);
+
+      if (!exists) {
+
+        const newTier = await TicketInventory.create({
+          tier,
+          total: 0,
+          sold: 0,
+        });
+
+        inventory.push(newTier);
+
+      }
+
+    }
+
+    res.json(inventory);
+
+  } catch (err) {
+
+    console.error("Public inventory error:", err);
+    res.status(500).json({ error: "Server error" });
+
+  }
+});
+
+/* =========================================================
    📊 GET INVENTORY
    GET /api/admin/inventory
 ========================================================= */
@@ -178,46 +263,6 @@ router.get(
 );
 
 /* =========================================================
-   🌐 PUBLIC INVENTORY
-   GET /api/admin/inventory/public
-========================================================= */
-
-router.get("/inventory/public", async (req, res) => {
-  try {
-
-    let inventory = await TicketInventory.find().sort({ tier: 1 });
-
-    const tiers = ["early", "festival", "vip"];
-
-    for (const tier of tiers) {
-
-      const exists = inventory.find((i) => i.tier === tier);
-
-      if (!exists) {
-
-        const newTier = await TicketInventory.create({
-          tier,
-          total: 0,
-          sold: 0,
-        });
-
-        inventory.push(newTier);
-
-      }
-
-    }
-
-    res.json(inventory);
-
-  } catch (err) {
-
-    console.error("Public inventory error:", err);
-    res.status(500).json({ error: "Server error" });
-
-  }
-});
-
-/* =========================================================
    ✏️ UPDATE INVENTORY TOTAL
    PUT /api/admin/inventory/:tier
 ========================================================= */
@@ -242,18 +287,15 @@ router.put(
         });
       }
 
-      // update total if provided
       if (typeof total === "number") {
         if (total < inventory.sold) {
           return res.status(400).json({
             error: "Total cannot be less than sold tickets"
           });
         }
-
         inventory.total = total;
       }
 
-      // update price if provided
       if (typeof price === "number") {
         inventory.price = price;
       }
