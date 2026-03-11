@@ -228,48 +228,46 @@ router.put(
   adminMiddleware,
   async (req, res) => {
     try {
-
       const { tier } = req.params;
-      const { total } = req.body;
-
-      if (typeof total !== "number" || total < 0) {
-        return res.status(400).json({ error: "Invalid total value" });
-      }
+      const { total, price } = req.body;
 
       let inventory = await TicketInventory.findOne({ tier });
 
       if (!inventory) {
-
         inventory = new TicketInventory({
           tier,
-          total,
+          total: total || 0,
           sold: 0,
+          price: price || 0
         });
+      }
 
-      } else {
-
+      // update total if provided
+      if (typeof total === "number") {
         if (total < inventory.sold) {
           return res.status(400).json({
-            error: "Total cannot be less than sold tickets",
+            error: "Total cannot be less than sold tickets"
           });
         }
 
         inventory.total = total;
+      }
 
+      // update price if provided
+      if (typeof price === "number") {
+        inventory.price = price;
       }
 
       await inventory.save();
 
       res.json({
         success: true,
-        inventory,
+        inventory
       });
 
     } catch (err) {
-
       console.error("Inventory update error:", err);
       res.status(500).json({ error: "Server error" });
-
     }
   }
 );
