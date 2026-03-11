@@ -53,19 +53,19 @@ router.get(
       let totalTickets = 0;
       let totalRevenue = 0;
 
-      const tierStats = [];
+      const sales = [];
 
       for (const tier of inventory) {
 
         totalTickets += tier.sold;
 
-        const revenue = tier.sold * tier.price;
+        const revenue = tier.sold * (tier.price || 0);
 
         totalRevenue += revenue;
 
-        tierStats.push({
-          tier: tier.tier,
-          sold: tier.sold,
+        sales.push({
+          name: tier.tier.toUpperCase(),
+          tickets: tier.sold,
           revenue: revenue
         });
 
@@ -76,7 +76,7 @@ router.get(
           totalRevenue,
           totalTickets
         },
-        tiers: tierStats
+        sales
       });
 
     } catch (err) {
