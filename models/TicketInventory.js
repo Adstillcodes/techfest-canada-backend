@@ -15,7 +15,7 @@ const ticketInventorySchema = new mongoose.Schema(
     total: {
       type: Number,
       required: true,
-      default: 10,
+      default: 0,
       min: 0,
     },
 
