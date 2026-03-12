@@ -28,13 +28,12 @@ async function getUserFromReq(req) {
 }
 
 // ================= CREATE CHECKOUT =================
-router.post("/create-checkout", async (req, res) => {
+uter.post("/create-checkout", async (req, res) => {
   try {
 
     const { tier } = req.body;
     const normalizedTier = tier.toLowerCase();
 
-    // get ticket info from inventory
     const ticket = await TicketInventory.findOne({ tier: normalizedTier });
 
     if (!ticket) {
@@ -43,12 +42,26 @@ router.post("/create-checkout", async (req, res) => {
 
     const stripe = getStripe();
 
+    // check if user is logged in
+    let userId = null;
+
+    const authHeader = req.headers.authorization;
+
+    if (authHeader) {
+      try {
+        const token = authHeader.split(" ")[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.id;
+      } catch {
+        userId = null;
+      }
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-
       payment_method_types: ["card"],
 
-      // Stripe will collect email during checkout
+      // Stripe collects email for guests
       customer_creation: "always",
 
       line_items: [
@@ -68,17 +81,16 @@ router.post("/create-checkout", async (req, res) => {
       cancel_url: `${process.env.FRONTEND_URL}/tickets`,
 
       metadata: {
-        tier: normalizedTier
+        tier: normalizedTier,
+        userId: userId || "guest"
       }
     });
 
     res.json({ url: session.url });
 
   } catch (err) {
-
     console.error("CHECKOUT ERROR:", err);
     res.status(500).json({ error: "Checkout failed" });
-
   }
 });
 
