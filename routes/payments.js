@@ -34,10 +34,10 @@ router.post("/create-checkout", async (req, res) => {
     const { tier } = req.body;
 
     const prices = {
-      Discover: 29900,
-      Connect: 49900,
-      Influence: 79900,
-      Power:99900
+      discover: 29900,
+      connect: 49900,
+      influence: 79900,
+      power:99900
     };
     if (!prices[tier]) {
   return res.status(400).json({ error: "Invalid ticket tier" });
