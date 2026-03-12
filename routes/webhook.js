@@ -58,7 +58,6 @@ router.post("/stripe", async (req, res) => {
           }
         }
  // ================= CREATE TICKET =================
-const session = event.data.object;
 
 const tier = session.metadata.tier;
 const userId = session.metadata.userId;
