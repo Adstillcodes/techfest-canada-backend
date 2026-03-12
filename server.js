@@ -28,7 +28,6 @@ const allowedOrigins = [
 app.use(cors({
   origin: function(origin, callback) {
 
-    // allow server-to-server or curl
     if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
@@ -42,9 +41,8 @@ app.use(cors({
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
 
-// allow preflight
-app.options("*", cors());
-
+// allow preflight requests
+app.options("/*", cors());
 /* ==========================================
    STRIPE WEBHOOK (RAW BODY REQUIRED)
 ========================================== */
