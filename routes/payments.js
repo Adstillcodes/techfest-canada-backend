@@ -31,17 +31,18 @@ async function getUserFromReq(req) {
 router.post("/create-checkout", async (req, res) => {
   try {
     const user = await getUserFromReq(req);
-    const { tier } = req.body;
+  const { tier } = req.body;
+const normalizedTier = tier.toLowerCase();
 
-    const prices = {
-      discover: 29900,
-      connect: 49900,
-      influence: 79900,
-      power:99900
-    };
-    if (!prices[tier]) {
+// get ticket info from inventory
+const ticket = await TicketInventory.findOne({ tier: normalizedTier });
+
+if (!ticket) {
   return res.status(400).json({ error: "Invalid ticket tier" });
 }
+
+// convert price to cents for Stripe
+const price = ticket.price * 100;
     const stripe = getStripe();
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
