@@ -57,7 +57,7 @@ const price = ticket.price * 100;
             product_data: {
               name: `TechFest ${tier.toUpperCase()} Pass`,
             },
-            unit_amount: prices[tier],
+            unit_amount: price,
           },
           quantity: 1,
         },
