@@ -10,10 +10,7 @@ import { sendResetPasswordEmail } from "../services/emailService.js";
 const router = express.Router();
 
 // ⚠️ raw body required for Stripe
-router.post(
-  "/stripe",
-  express.raw({ type: "application/json" }),
-  async (req, res) => {
+router.post("/stripe", async (req, res) => {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     const sig = req.headers["stripe-signature"];
 
