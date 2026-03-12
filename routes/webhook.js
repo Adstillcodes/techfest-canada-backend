@@ -60,11 +60,9 @@ router.post(
             console.log("📦 Inventory updated:", tier);
           }
         }
-
-        // ================= CREATE TICKET =================
-        const ticketId = crypto.randomBytes(6).toString("hex");
-
-       const user = await User.findById(userId);
+ // ================= CREATE TICKET =================
+const ticketId = crypto.randomBytes(6).toString("hex");
+const user = await User.findById(userId);
 
 const ticket = {
   ticketId,
@@ -78,7 +76,12 @@ await user.save();
 
 const pdf = await generateTicketPDF(ticket);
 
-await sendTicketEmail(user.email, user.name, pdf);
+await sendTicketEmail({
+  email: user.email,
+  name: user.name,
+  ticketId: ticketId,
+  tier: tier
+});
         console.log("✅ Ticket created for user:", userId);
       } catch (err) {
         console.error("❌ Webhook processing failed:", err);
