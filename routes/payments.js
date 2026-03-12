@@ -28,7 +28,7 @@ async function getUserFromReq(req) {
 }
 
 // ================= CREATE CHECKOUT =================
-uter.post("/create-checkout", async (req, res) => {
+router.post("/create-checkout", async (req, res) => {
   try {
 
     const { tier } = req.body;
