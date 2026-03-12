@@ -2,18 +2,18 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import Stripe from "stripe";
 import User from "../models/User.js";
-
 import TicketInventory from "../models/TicketInventory.js";
 
 const router = express.Router();
+
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY missing in env");
   }
-
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 }
-// 🔐 middleware to get user from token
+
+// middleware to get user from token
 async function getUserFromReq(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader) throw new Error("No token");
@@ -31,25 +31,24 @@ async function getUserFromReq(req) {
 router.post("/create-checkout", async (req, res) => {
   try {
     const user = await getUserFromReq(req);
-  const { tier } = req.body;
-const normalizedTier = tier.toLowerCase();
+    const { tier } = req.body;
+    const normalizedTier = tier.toLowerCase();
 
-// get ticket info from inventory
-const ticket = await TicketInventory.findOne({ tier: normalizedTier });
+    // get ticket info from inventory
+    const ticket = await TicketInventory.findOne({ tier: normalizedTier });
 
-if (!ticket) {
-  return res.status(400).json({ error: "Invalid ticket tier" });
-}
+    if (!ticket) {
+      return res.status(400).json({ error: "Invalid ticket tier" });
+    }
 
-// convert price to cents for Stripe
-const price = ticket.price * 100;
+    // convert price to cents for Stripe
+    const price = ticket.price * 100;
     const stripe = getStripe();
+    
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
       mode: "payment",
-
       customer_email: user.email,
-
       line_items: [
         {
           price_data: {
@@ -62,8 +61,9 @@ const price = ticket.price * 100;
           quantity: 1,
         },
       ],
-
-      success_url: `${process.env.FRONTEND_URL}/dashboard?success=1`,
+      
+      // Updated this line to match the frontend logic
+      success_url: `${process.env.FRONTEND_URL}/tickets?success=true`,
       cancel_url: `${process.env.FRONTEND_URL}/tickets`,
 
       metadata: {
