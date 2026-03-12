@@ -49,9 +49,13 @@ async function generateTicketPDF({ name, ticketId, tier }) {
 
     /* ================= QR CODE ================= */
 
-    const qrData = await QRCode.toDataURL(ticketId);
+  if (!ticketId) {
+  throw new Error("Ticket ID missing when generating QR code");
+}
 
-    const base64 = qrData.replace(/^data:image\/png;base64,/, "");
+const qrData = await QRCode.toDataURL(String(ticketId));
+     
+     const base64 = qrData.replace(/^data:image\/png;base64,/, "");
 
     const img = Buffer.from(base64, "base64");
 
