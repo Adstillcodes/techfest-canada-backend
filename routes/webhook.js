@@ -58,26 +58,47 @@ router.post("/stripe", async (req, res) => {
           }
         }
  // ================= CREATE TICKET =================
+const session = event.data.object;
+
+const tier = session.metadata.tier;
+const userId = session.metadata.userId;
+
+const email = session.customer_details.email;
+const name = session.customer_details.name || "Guest";
+
+// update inventory
+const inventory = await TicketInventory.findOne({ tier });
+
+if (inventory && inventory.sold < inventory.total) {
+  inventory.sold += 1;
+  await inventory.save();
+}
+
 const ticketId = crypto.randomBytes(6).toString("hex");
-const user = await User.findById(userId);
 
-const ticket = {
-  ticketId,
-  type: tier,
-  purchaseDate: new Date(),
-  name: user.name
-};
+// if logged in → attach ticket to account
+if (userId && userId !== "guest") {
 
-user.tickets.push(ticket);
-await user.save();
+  const user = await User.findById(userId);
 
-const pdf = await generateTicketPDF(ticket);
+  if (user) {
 
+    user.tickets.push({
+      ticketId,
+      type: tier,
+      purchaseDate: new Date()
+    });
+
+    await user.save();
+  }
+}
+
+// always send email
 await sendTicketEmail({
-  email: user.email,
-  name: user.name,
-  ticketId: ticketId,
-  tier: tier
+  email,
+  name,
+  ticketId,
+  tier
 });
         console.log("✅ Ticket created for user:", userId);
       } catch (err) {
