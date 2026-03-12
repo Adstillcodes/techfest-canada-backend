@@ -30,7 +30,7 @@ async function getUserFromReq(req) {
 // ================= CREATE CHECKOUT =================
 router.post("/create-checkout", async (req, res) => {
   try {
-    const user = await getUserFromReq(req);
+
     const { tier } = req.body;
     const normalizedTier = tier.toLowerCase();
 
@@ -41,14 +41,16 @@ router.post("/create-checkout", async (req, res) => {
       return res.status(400).json({ error: "Invalid ticket tier" });
     }
 
-    // convert price to cents for Stripe
-    const price = ticket.price * 100;
     const stripe = getStripe();
-    
+
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
       mode: "payment",
-      customer_email: user.email,
+
+      payment_method_types: ["card"],
+
+      // Stripe will collect email during checkout
+      customer_creation: "always",
+
       line_items: [
         {
           price_data: {
@@ -56,26 +58,27 @@ router.post("/create-checkout", async (req, res) => {
             product_data: {
               name: `TechFest ${tier.toUpperCase()} Pass`,
             },
-            unit_amount: price,
+            unit_amount: ticket.price * 100,
           },
           quantity: 1,
         },
       ],
-      
-      // Updated this line to match the frontend logic
+
       success_url: `${process.env.FRONTEND_URL}/tickets?success=true`,
       cancel_url: `${process.env.FRONTEND_URL}/tickets`,
 
       metadata: {
-        userId: user._id.toString(),
-        tier,
-      },
+        tier: normalizedTier
+      }
     });
 
     res.json({ url: session.url });
+
   } catch (err) {
+
     console.error("CHECKOUT ERROR:", err);
     res.status(500).json({ error: "Checkout failed" });
+
   }
 });
 
