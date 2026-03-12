@@ -41,11 +41,7 @@ app.use(cors({
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
-/* ==========================================
-   STRIPE WEBHOOK (RAW BODY REQUIRED)
-========================================== */
 
-app.use("/api/webhook", webhookRoutes);
 
 /* ==========================================
    JSON PARSER
@@ -61,6 +57,12 @@ app.use("/api/auth", authRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
+
+/* ==========================================
+   STRIPE WEBHOOK (RAW BODY REQUIRED)
+========================================== */
+
+app.use("/api/webhook", webhookRoutes);
 
 /* ==========================================
    HEALTH CHECK
