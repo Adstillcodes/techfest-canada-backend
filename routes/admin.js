@@ -187,7 +187,7 @@ router.get("/inventory/public", async (req, res) => {
 
     let inventory = await TicketInventory.find().sort({ tier: 1 });
 
-    const tiers = ["early", "festival", "vip"];
+    const tiers = ["discover", "connect", "influence", "power"];
 
     for (const tier of tiers) {
 
