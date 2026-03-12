@@ -21,30 +21,29 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://techfest-canada-frontend.vercel.app",
-   "https://www.thetechfestival.com",
-   "https://thetechfestival.com"
-   
+  "https://www.thetechfestival.com",
+  "https://thetechfestival.com"
 ];
 
 app.use(cors({
-  origin: allowedOrigins,
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  credentials: true
+  origin: function(origin, callback) {
+
+    // allow server-to-server or curl
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error("CORS not allowed"), false);
+
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 }));
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      } else {
-        return callback(new Error("CORS not allowed"), false);
-      }
-    },
-    credentials: true,
-  })
-);
+// allow preflight
+app.options("*", cors());
 
 /* ==========================================
    STRIPE WEBHOOK (RAW BODY REQUIRED)
