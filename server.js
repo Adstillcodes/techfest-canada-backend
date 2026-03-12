@@ -62,7 +62,11 @@ app.use("/api/admin", adminRoutes);
    STRIPE WEBHOOK (RAW BODY REQUIRED)
 ========================================== */
 
-app.use("/api/webhook", webhookRoutes);
+app.use(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  webhookRoutes
+);
 
 /* ==========================================
    HEALTH CHECK
