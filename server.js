@@ -13,6 +13,7 @@ import checkinRoutes from "./routes/checkin.js";
 import adminRoutes from "./routes/admin.js";
 import kycRoutes from "./routes/kyc.js";
 import brochureRoutes from "./routes/brochure.js";
+import agendaRoutes from "./routes/agenda.js";
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/kyc", kycRoutes);
 app.use("/api/brochure", brochureRoutes);
+app.use("/api/agenda", agendaRoutes);
 
 /* ==========================================
    HEALTH CHECK
