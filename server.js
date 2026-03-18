@@ -12,6 +12,7 @@ import webhookRoutes from "./routes/webhook.js";
 import checkinRoutes from "./routes/checkin.js";
 import adminRoutes from "./routes/admin.js";
 import kycRoutes from "./routes/kyc.js";
+import brochureRoutes from "./routes/brochure.js";
 
 const app = express();
 
@@ -67,6 +68,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/checkin", checkinRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/kyc", kycRoutes);
+app.use("/api/brochure", brochureRoutes);
 
 /* ==========================================
    HEALTH CHECK
