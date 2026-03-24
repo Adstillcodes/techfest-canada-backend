@@ -14,6 +14,10 @@ import adminRoutes from "./routes/admin.js";
 import kycRoutes from "./routes/kyc.js";
 import brochureRoutes from "./routes/brochure.js";
 import agendaRoutes from "./routes/agenda.js";
+import subscriptionRoutes from "./routes/subscriptions.js";
+import campaignRoutes from "./routes/campaigns.js";
+import trackingRoutes from "./routes/tracking.js";
+import campaignAutomationRoutes from "./routes/campaignAutomation.js";
 
 const app = express();
 
@@ -71,6 +75,10 @@ app.use("/api/admin", adminRoutes);
 app.use("/api/kyc", kycRoutes);
 app.use("/api/brochure", brochureRoutes);
 app.use("/api/agenda", agendaRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
+app.use("/api/campaigns", campaignRoutes);
+app.use("/api/track", trackingRoutes);
+app.use("/api/campaigns/automation", campaignAutomationRoutes);
 
 /* ==========================================
    HEALTH CHECK

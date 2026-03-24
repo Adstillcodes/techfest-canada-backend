@@ -203,3 +203,41 @@ export async function sendTicketEmail({ email, name, ticketId, tier }) {
 
   }
 }
+
+/* =========================================================
+   CAMPAIGN EMAIL
+========================================================= */
+
+export async function sendCampaignEmail({ to, subject, html, campaignId, recipientEmail, recipientTrackingId, baseUrl }) {
+  try {
+    await resend.emails.send({
+      from: "TechFest Canada <campaigns@info.thetechfestival.com>",
+      to,
+      subject,
+      html,
+    });
+
+    console.log(`Campaign email sent to ${to}`);
+    return { success: true };
+  } catch (err) {
+    console.error("CAMPAIGN EMAIL ERROR:", err);
+    return { success: false, error: err.message };
+  }
+}
+
+/* =========================================================
+   TRACKED LINK WRAPPER
+   Wraps URLs in HTML with click tracking
+========================================================= */
+
+export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl) {
+  const trackedHtml = html.replace(
+    /href=["'](https?:\/\/[^"']+)["']/gi,
+    (match, url) => {
+      const encodedUrl = encodeURIComponent(url);
+      const trackingUrl = `${baseUrl}/api/track/click?url=${encodedUrl}&campaignId=${campaignId}&email=${encodeURIComponent(recipientEmail)}`;
+      return `href="${trackingUrl}"`;
+    }
+  );
+  return trackedHtml;
+}
