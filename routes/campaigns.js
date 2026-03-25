@@ -173,6 +173,119 @@ router.delete("/audiences/:id", authMiddleware, adminMiddleware, async (req, res
   }
 });
 
+router.put("/audiences/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    const audience = await Audience.findById(req.params.id);
+    
+    if (!audience) {
+      return res.status(404).json({ error: "Audience not found" });
+    }
+
+    if (name) audience.name = name;
+    if (description !== undefined) audience.description = description;
+    
+    await audience.save();
+
+    res.json({
+      _id: audience._id,
+      name: audience.name,
+      description: audience.description,
+      contactCount: audience.contactCount,
+      updatedAt: audience.updatedAt,
+    });
+  } catch (err) {
+    console.error("Update audience error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/audiences/:id/contacts", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { emails } = req.body;
+    const audience = await Audience.findById(req.params.id);
+    
+    if (!audience) {
+      return res.status(404).json({ error: "Audience not found" });
+    }
+
+    const existingEmails = new Set(audience.contacts.map((c) => c.email));
+    const newContacts = (emails || [])
+      .map((email) => email.toLowerCase().trim())
+      .filter((email) => email && email.includes("@") && !existingEmails.has(email))
+      .map((email) => ({
+        email,
+        addedAt: new Date(),
+      }));
+
+    audience.contacts.push(...newContacts);
+    await audience.save();
+
+    res.json({
+      success: true,
+      contactCount: audience.contactCount,
+      addedCount: newContacts.length,
+      skippedCount: (emails || []).length - newContacts.length,
+    });
+  } catch (err) {
+    console.error("Add contacts error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+router.post("/audiences/:id/import", authMiddleware, adminMiddleware, upload.single("file"), async (req, res) => {
+  try {
+    const audience = await Audience.findById(req.params.id);
+    
+    if (!audience) {
+      return res.status(404).json({ error: "Audience not found" });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "CSV file is required" });
+    }
+
+    const existingEmails = new Set(audience.contacts.map((c) => c.email));
+    const contacts = [];
+    
+    const stream = Readable.from(req.file.buffer.toString());
+
+    await new Promise((resolve, reject) => {
+      stream
+        .pipe(csvParser())
+        .on("data", (row) => {
+          const email = row.email || row.Email || row.EMAIL;
+          const nameField = row.name || row.Name || row.NAME || "";
+          if (email && email.includes("@")) {
+            const normalizedEmail = email.toLowerCase().trim();
+            if (!existingEmails.has(normalizedEmail)) {
+              contacts.push({
+                email: normalizedEmail,
+                name: String(nameField).trim(),
+                addedAt: new Date(),
+              });
+              existingEmails.add(normalizedEmail);
+            }
+          }
+        })
+        .on("end", resolve)
+        .on("error", reject);
+    });
+
+    audience.contacts.push(...contacts);
+    await audience.save();
+
+    res.json({
+      success: true,
+      contactCount: audience.contactCount,
+      addedCount: contacts.length,
+    });
+  } catch (err) {
+    console.error("Import to audience error:", err);
+    res.status(500).json({ error: "Failed to import CSV" });
+  }
+});
+
 router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const campaigns = await Campaign.find()
