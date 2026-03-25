@@ -14,7 +14,7 @@ const router = express.Router();
 router.post("/register", async (req, res) => {
   try {
 
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
 
     const existingUser = await User.findOne({ email });
 
@@ -28,7 +28,8 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password: hashedPassword,
-      provider: "local"
+      provider: "local",
+      role: role || "user"
     });
 
     const token = jwt.sign(
@@ -425,6 +426,38 @@ router.post("/reset-password/:token", async (req, res) => {
 
   }
 
+});
+
+/* ================= TEMP: SET USER ROLE (remove after use) ================= */
+router.put("/set-role", async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const token = authHeader.split(" ")[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    const { email, role } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    user.role = role;
+    await user.save();
+
+    res.json({ success: true, message: `User ${email} role set to ${role}` });
+  } catch (err) {
+    console.error("Set role error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 export default router;
