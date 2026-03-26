@@ -53,6 +53,12 @@ const campaignTemplateSchema = new mongoose.Schema({
     ref: "Campaign",
   },
   sentAt: Date,
+  htmlBody: {
+    type: String,
+  },
+  textBody: {
+    type: String,
+  },
   status: {
     type: String,
     enum: ["pending", "draft", "scheduled", "sent", "skipped"],

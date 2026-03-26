@@ -85,7 +85,7 @@ router.get("/templates/:id", authMiddleware, adminMiddleware, async (req, res) =
 
 router.put("/templates/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { subject, bodySummary, ctaText, ctaLink, status } = req.body;
+    const { subject, bodySummary, ctaText, ctaLink, status, sendDate, htmlBody, textBody } = req.body;
     
     const template = await CampaignTemplate.findById(req.params.id);
     if (!template) {
@@ -97,16 +97,21 @@ router.put("/templates/:id", authMiddleware, adminMiddleware, async (req, res) =
     if (ctaText) template.ctaText = ctaText;
     if (ctaLink) template.ctaLink = ctaLink;
     if (status) template.status = status;
+    if (sendDate) template.sendDate = new Date(sendDate);
+    if (htmlBody !== undefined) template.htmlBody = htmlBody;
+    if (textBody !== undefined) template.textBody = textBody;
 
     await template.save();
     res.json(template);
   } catch (err) {
+    console.error("Update template error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
 router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const { subject, htmlBody, textBody } = req.body;
     const template = await CampaignTemplate.findById(req.params.id);
     if (!template) {
       return res.status(404).json({ error: "Template not found" });
@@ -126,7 +131,12 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       return res.status(400).json({ error: `No contacts in ${audienceName} audience` });
     }
 
-    const html = generateEmailHtml(template);
+    const finalSubject = subject || template.subject;
+    let html = htmlBody || template.htmlBody;
+    
+    if (!html) {
+      html = generateEmailHtml(template);
+    }
 
     const emailPromises = audience.contacts.map((contact) => {
       const personalizedHtml = html
@@ -137,15 +147,19 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
 
       return sendCampaignEmail({
         to: contact.email,
-        subject: template.subject,
+        subject: finalSubject,
         html: personalizedHtml + trackingPixel,
         campaignId: `tpl-${template._id}`,
         recipientEmail: contact.email,
+        text: textBody || template.textBody,
       });
     });
 
     await Promise.allSettled(emailPromises);
 
+    if (subject) template.subject = subject;
+    if (htmlBody) template.htmlBody = htmlBody;
+    if (textBody) template.textBody = textBody;
     template.status = "sent";
     template.sentAt = new Date();
     await template.save();
@@ -182,6 +196,8 @@ router.get("/calendar", authMiddleware, adminMiddleware, async (req, res) => {
           purpose: t.purpose,
           status: t.status,
           sentAt: t.sentAt,
+          htmlBody: t.htmlBody || null,
+          textBody: t.textBody || null,
         });
       }
     }
