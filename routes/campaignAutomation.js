@@ -3,7 +3,8 @@ import jwt from "jsonwebtoken";
 import CampaignTemplate from "../models/CampaignTemplate.js";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
-import { sendCampaignEmail } from "../services/emailService.js";
+import EmailTracking from "../models/EmailTracking.js";
+import { sendCampaignEmail, wrapLinksWithTracking } from "../services/emailService.js";
 import { seedCampaignTemplates, createDefaultAudiences, markCampaignSent } from "../services/campaignAutomation.js";
 
 const router = express.Router();
@@ -138,24 +139,43 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       html = generateEmailHtml(template);
     }
 
+    const trackingRecords = [];
+    const templateIdStr = template._id.toString();
+    const campaignIdPrefix = `tpl-${templateIdStr}`;
+    
     const emailPromises = audience.contacts.map((contact) => {
       const personalizedHtml = html
         .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
         .replace(/\{\{email\}\}/g, contact.email);
 
-      const trackingPixel = `<img src="${API_URL}/api/track/open/tpl-${template._id}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
+      const htmlWithLinksTracked = wrapLinksWithTracking(
+        personalizedHtml,
+        campaignIdPrefix,
+        contact.email,
+        API_URL
+      );
+
+      const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
+
+      const tracking = new EmailTracking({
+        campaignId: campaignIdPrefix,
+        email: contact.email,
+        status: "pending",
+      });
+      trackingRecords.push(tracking.save());
 
       return sendCampaignEmail({
         to: contact.email,
         subject: finalSubject,
-        html: personalizedHtml + trackingPixel,
-        campaignId: `tpl-${template._id}`,
+        html: htmlWithLinksTracked + trackingPixel,
+        campaignId: campaignIdPrefix,
         recipientEmail: contact.email,
         text: textBody || template.textBody,
       });
     });
 
     await Promise.allSettled(emailPromises);
+    await Promise.all(trackingRecords);
 
     const sentCount = audience.contacts.length;
 
@@ -166,11 +186,12 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     template.sentAt = new Date();
     await template.save();
 
-    let campaign = await Campaign.findOne({ name: template.templateId });
+    const campaignName = campaignIdPrefix;
+    let campaign = await Campaign.findOne({ name: campaignName });
     if (!campaign) {
       const audienceDoc = await Audience.findOne({ name: audienceName });
       campaign = new Campaign({
-        name: template.templateId,
+        name: campaignName,
         subject: finalSubject,
         audienceId: audienceDoc?._id || null,
         template: html,
@@ -205,7 +226,8 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     res.json({ success: true, sent: sentCount, template, campaignId: campaign._id });
   } catch (err) {
     console.error("Send template error:", err);
-    res.status(500).json({ error: "Failed to send" });
+    console.error("Error stack:", err.stack);
+    res.status(500).json({ error: "Failed to send", details: err.message });
   }
 });
 

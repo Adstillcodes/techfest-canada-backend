@@ -7,7 +7,7 @@ import { Readable } from "stream";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking } from "../services/emailService.js";
 
 const router = express.Router();
 
@@ -427,7 +427,14 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
         .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
         .replace(/\{\{email\}\}/g, contact.email);
 
-      const htmlWithTracking = personalizedHtml + `
+      const htmlWithLinksTracked = wrapLinksWithTracking(
+        personalizedHtml,
+        campaign._id.toString(),
+        contact.email,
+        baseUrl
+      );
+
+      const htmlWithTracking = htmlWithLinksTracked + `
         <img src="${baseUrl}/api/track/open/${campaign._id}/${contact.email}" width="1" height="1" style="display:none" alt="" />
       `;
 
@@ -473,7 +480,14 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
 
     const baseUrl = process.env.API_URL || "https://techfest-canada-backend.onrender.com";
 
-    const htmlWithTracking = campaign.template + `
+    const htmlWithLinksTracked = wrapLinksWithTracking(
+      campaign.template,
+      campaign._id.toString(),
+      email,
+      baseUrl
+    );
+
+    const htmlWithTracking = htmlWithLinksTracked + `
       <img src="${baseUrl}/api/track/open/${campaign._id}/${email}" width="1" height="1" style="display:none" alt="" />
     `;
 
