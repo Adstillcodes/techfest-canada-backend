@@ -448,6 +448,9 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     campaign.status = "sent";
     await campaign.save();
 
+    console.log(`[CAMPAIGN LAUNCH] Campaign "${campaign.name}" (ID: ${campaign._id}) sent to ${audience.contacts.length} recipients`);
+    console.log(`[CAMPAIGN LAUNCH] Stats: sent=${campaign.stats.sent}, uniqueOpens=${campaign.stats.uniqueOpens}, uniqueClicks=${campaign.stats.uniqueClicks}`);
+
     res.json({
       success: true,
       message: `Campaign sent to ${audience.contacts.length} recipients`,
@@ -482,7 +485,20 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
       recipientEmail: email,
     });
 
-    res.json({ success: true, message: "Test email sent" });
+    const tracking = new EmailTracking({
+      campaignId: campaign._id,
+      email: email,
+      status: "delivered",
+    });
+    await tracking.save();
+
+    campaign.stats.sent = (campaign.stats.sent || 0) + 1;
+    await campaign.save();
+
+    console.log(`[TEST EMAIL] Sent test email to ${email} for campaign "${campaign.name}" (ID: ${campaign._id})`);
+    console.log(`[TEST EMAIL] Campaign "${campaign.name}" sent count is now: ${campaign.stats.sent}`);
+
+    res.json({ success: true, message: "Test email sent", sentCount: campaign.stats.sent });
   } catch (err) {
     console.error("Send test error:", err);
     res.status(500).json({ error: "Failed to send test email" });

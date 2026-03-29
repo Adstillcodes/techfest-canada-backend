@@ -199,6 +199,9 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     template.campaign = campaign._id;
     await template.save();
 
+    console.log(`[AUTOMATION CAMPAIGN] Template "${template.templateId}" sent to ${sentCount} recipients via audience "${audienceName}"`);
+    console.log(`[AUTOMATION CAMPAIGN] Campaign entry created/updated: "${campaign.name}" (ID: ${campaign._id}), stats.sent=${sentCount}`);
+
     res.json({ success: true, sent: sentCount, template, campaignId: campaign._id });
   } catch (err) {
     console.error("Send template error:", err);
