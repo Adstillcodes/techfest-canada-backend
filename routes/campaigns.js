@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import multer from "multer";
 import csvParser from "csv-parser";
 import { Readable } from "stream";
+import crypto from "crypto";
 
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
@@ -421,32 +422,39 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
 
     await Promise.all(trackingRecords);
 
+    const campaignIdStr = campaign._id.toString();
+    
     const emailPromises = audience.contacts.map((contact) => {
-      const recipientTrackingId = generateTrackingId();
-      const personalizedHtml = campaign.template
-        .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
-        .replace(/\{\{email\}\}/g, contact.email);
+      try {
+        const recipientTrackingId = generateTrackingId();
+        const personalizedHtml = campaign.template
+          .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
+          .replace(/\{\{email\}\}/g, contact.email);
 
-      const htmlWithLinksTracked = wrapLinksWithTracking(
-        personalizedHtml,
-        campaign._id.toString(),
-        contact.email,
-        baseUrl
-      );
+        const htmlWithLinksTracked = wrapLinksWithTracking(
+          personalizedHtml,
+          campaignIdStr,
+          contact.email,
+          baseUrl
+        );
 
-      const htmlWithTracking = htmlWithLinksTracked + `
-        <img src="${baseUrl}/api/track/open/${campaign._id}/${contact.email}" width="1" height="1" style="display:none" alt="" />
-      `;
+        const htmlWithTracking = htmlWithLinksTracked + `
+          <img src="${baseUrl}/api/track/open/${campaignIdStr}/${contact.email}" width="1" height="1" style="display:none" alt="" />
+        `;
 
-      return sendCampaignEmail({
-        to: contact.email,
-        subject: campaign.subject,
-        html: htmlWithTracking,
-        campaignId: campaign._id.toString(),
-        recipientEmail: contact.email,
-        recipientTrackingId,
-        baseUrl,
-      });
+        return sendCampaignEmail({
+          to: contact.email,
+          subject: campaign.subject,
+          html: htmlWithTracking,
+          campaignId: campaignIdStr,
+          recipientEmail: contact.email,
+          recipientTrackingId,
+          baseUrl,
+        });
+      } catch (err) {
+        console.error(`Error sending to ${contact.email}:`, err);
+        return Promise.resolve({ success: false, error: err.message });
+      }
     });
 
     await Promise.allSettled(emailPromises);
@@ -465,7 +473,8 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     });
   } catch (err) {
     console.error("Launch campaign error:", err);
-    res.status(500).json({ error: "Failed to launch campaign" });
+    console.error("Error stack:", err.stack);
+    res.status(500).json({ error: "Failed to launch campaign", details: err.message });
   }
 });
 

@@ -144,34 +144,39 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     const campaignIdPrefix = `tpl-${templateIdStr}`;
     
     const emailPromises = audience.contacts.map((contact) => {
-      const personalizedHtml = html
-        .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
-        .replace(/\{\{email\}\}/g, contact.email);
+      try {
+        const personalizedHtml = html
+          .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
+          .replace(/\{\{email\}\}/g, contact.email);
 
-      const htmlWithLinksTracked = wrapLinksWithTracking(
-        personalizedHtml,
-        campaignIdPrefix,
-        contact.email,
-        API_URL
-      );
+        const htmlWithLinksTracked = wrapLinksWithTracking(
+          personalizedHtml,
+          campaignIdPrefix,
+          contact.email,
+          API_URL
+        );
 
-      const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
+        const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
 
-      const tracking = new EmailTracking({
-        campaignId: campaignIdPrefix,
-        email: contact.email,
-        status: "pending",
-      });
-      trackingRecords.push(tracking.save());
+        const tracking = new EmailTracking({
+          campaignId: campaignIdPrefix,
+          email: contact.email,
+          status: "pending",
+        });
+        trackingRecords.push(tracking.save());
 
-      return sendCampaignEmail({
-        to: contact.email,
-        subject: finalSubject,
-        html: htmlWithLinksTracked + trackingPixel,
-        campaignId: campaignIdPrefix,
-        recipientEmail: contact.email,
-        text: textBody || template.textBody,
-      });
+        return sendCampaignEmail({
+          to: contact.email,
+          subject: finalSubject,
+          html: htmlWithLinksTracked + trackingPixel,
+          campaignId: campaignIdPrefix,
+          recipientEmail: contact.email,
+          text: textBody || template.textBody,
+        });
+      } catch (err) {
+        console.error(`Error sending to ${contact.email}:`, err);
+        return Promise.resolve({ success: false, error: err.message });
+      }
     });
 
     await Promise.allSettled(emailPromises);

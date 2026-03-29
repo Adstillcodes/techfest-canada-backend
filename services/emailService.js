@@ -231,13 +231,20 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
 ========================================================= */
 
 export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl) {
-  const trackedHtml = html.replace(
-    /href=["'](https?:\/\/[^"']+)["']/gi,
-    (match, url) => {
-      const encodedUrl = encodeURIComponent(url);
-      const trackingUrl = `${baseUrl}/api/track/click?url=${encodedUrl}&campaignId=${campaignId}&email=${encodeURIComponent(recipientEmail)}`;
-      return `href="${trackingUrl}"`;
-    }
-  );
-  return trackedHtml;
+  if (!html) return html;
+  
+  try {
+    const trackedHtml = html.replace(
+      /href=["'](https?:\/\/[^"']+)["']/gi,
+      (match, url) => {
+        const encodedUrl = encodeURIComponent(url);
+        const trackingUrl = `${baseUrl}/api/track/click?url=${encodedUrl}&campaignId=${campaignId}&email=${encodeURIComponent(recipientEmail)}`;
+        return `href="${trackingUrl}"`;
+      }
+    );
+    return trackedHtml;
+  } catch (err) {
+    console.error("Error in wrapLinksWithTracking:", err);
+    return html;
+  }
 }
