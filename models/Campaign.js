@@ -12,7 +12,7 @@ const campaignSchema = new mongoose.Schema({
   audienceId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Audience",
-    required: true,
+    required: false,
   },
   template: {
     type: String,
