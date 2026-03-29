@@ -84,7 +84,7 @@ export async function sendWelcomeEmail(email, name) {
 
     await resend.emails.send({
 
-      from: "TechFest Canada <noreply@info.thetechfestival.com>",
+      from: "TechFest Canada <noreply@thetechfestival.com>",
 
       to: email,
 
@@ -123,7 +123,7 @@ export async function sendResetPasswordEmail(email, resetLink) {
 
     await resend.emails.send({
 
-      from: "TechFest Canada <noreply@info.thetechfestival.com>",
+      from: "TechFest Canada <noreply@thetechfestival.com>",
 
       to: email,
 
@@ -166,7 +166,7 @@ export async function sendTicketEmail({ email, name, ticketId, tier }) {
 
     await resend.emails.send({
 
-      from: "TechFest Canada <tickets@info.thetechfestival.com>",
+      from: "TechFest Canada <tickets@thetechfestival.com>",
 
       to: email,
 
@@ -211,7 +211,7 @@ export async function sendTicketEmail({ email, name, ticketId, tier }) {
 export async function sendCampaignEmail({ to, subject, html, campaignId, recipientEmail, recipientTrackingId, baseUrl }) {
   try {
     await resend.emails.send({
-      from: "TechFest Canada <campaigns@info.thetechfestival.com>",
+      from: "TechFest Canada <campaigns@thetechfestival.com>",
       to,
       subject,
       html,
