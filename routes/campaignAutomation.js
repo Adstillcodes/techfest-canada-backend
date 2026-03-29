@@ -157,6 +157,8 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
 
     await Promise.allSettled(emailPromises);
 
+    const sentCount = audience.contacts.length;
+
     if (subject) template.subject = subject;
     if (htmlBody) template.htmlBody = htmlBody;
     if (textBody) template.textBody = textBody;
@@ -164,7 +166,40 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     template.sentAt = new Date();
     await template.save();
 
-    res.json({ success: true, sent: audience.contacts.length, template });
+    let campaign = await Campaign.findOne({ name: template.templateId });
+    if (!campaign) {
+      const audienceDoc = await Audience.findOne({ name: audienceName });
+      campaign = new Campaign({
+        name: template.templateId,
+        subject: finalSubject,
+        audienceId: audienceDoc?._id || null,
+        template: html,
+        status: "sent",
+        sentAt: new Date(),
+        stats: {
+          sent: sentCount,
+          uniqueOpens: 0,
+          totalOpens: 0,
+          uniqueClicks: 0,
+          totalClicks: 0,
+          bounces: 0,
+          hardBounces: 0,
+          softBounces: 0,
+          unsubscribes: 0,
+        },
+        createdBy: req.user?.userId,
+      });
+    } else {
+      campaign.stats.sent = sentCount;
+      campaign.status = "sent";
+      campaign.sentAt = new Date();
+    }
+    await campaign.save();
+
+    template.campaign = campaign._id;
+    await template.save();
+
+    res.json({ success: true, sent: sentCount, template, campaignId: campaign._id });
   } catch (err) {
     console.error("Send template error:", err);
     res.status(500).json({ error: "Failed to send" });
