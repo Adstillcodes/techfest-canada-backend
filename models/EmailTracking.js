@@ -2,8 +2,7 @@ import mongoose from "mongoose";
 
 const emailTrackingSchema = new mongoose.Schema({
   campaignId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Campaign",
+    type: String,
     required: true,
     index: true,
   },
