@@ -117,6 +117,21 @@ router.post("/templates", authMiddleware, adminMiddleware, async (req, res) => {
   }
 });
 
+router.delete("/templates/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const template = await CampaignTemplate.findById(req.params.id);
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+
+    await CampaignTemplate.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: "Campaign deleted" });
+  } catch (err) {
+    console.error("Delete template error:", err);
+    res.status(500).json({ error: "Failed to delete campaign" });
+  }
+});
+
 router.put("/templates/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { subject, bodySummary, ctaText, ctaLink, status, sendDate, htmlBody, textBody } = req.body;
