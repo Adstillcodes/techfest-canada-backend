@@ -113,10 +113,21 @@ router.post("/audiences/import", authMiddleware, adminMiddleware, upload.single(
         .on("data", (row) => {
           const email = row.email || row.Email || row.EMAIL;
           const nameField = row.name || row.Name || row.NAME || "";
+          const firstName = row.firstname || row.firstName || row["Person FirstName"] || row.Person_FirstName || "";
+          const lastName = row.lastname || row.lastName || row["Person LastName"] || row.Person_LastName || "";
+          const company = row.company || row.companyName || row["Company Name"] || row.Company_Name || "";
+          const title = row.title || row.jobTitle || row["Person Title"] || row.Person_Title || "";
+          const location = row.location || row["Person Location"] || row.Person_Location || "";
+          
           if (email && email.includes("@")) {
             contacts.push({
               email: email.toLowerCase().trim(),
               name: String(nameField).trim(),
+              firstName: String(firstName).trim(),
+              lastName: String(lastName).trim(),
+              company: String(company).trim(),
+              title: String(title).trim(),
+              location: String(location).trim(),
               addedAt: new Date(),
             });
           }
@@ -257,12 +268,23 @@ router.post("/audiences/:id/import", authMiddleware, adminMiddleware, upload.sin
         .on("data", (row) => {
           const email = row.email || row.Email || row.EMAIL;
           const nameField = row.name || row.Name || row.NAME || "";
+          const firstName = row.firstname || row.firstName || row["Person FirstName"] || row.Person_FirstName || "";
+          const lastName = row.lastname || row.lastName || row["Person LastName"] || row.Person_LastName || "";
+          const company = row.company || row.companyName || row["Company Name"] || row.Company_Name || "";
+          const title = row.title || row.jobTitle || row["Person Title"] || row.Person_Title || "";
+          const location = row.location || row["Person Location"] || row.Person_Location || "";
+          
           if (email && email.includes("@")) {
             const normalizedEmail = email.toLowerCase().trim();
             if (!existingEmails.has(normalizedEmail)) {
               contacts.push({
                 email: normalizedEmail,
                 name: String(nameField).trim(),
+                firstName: String(firstName).trim(),
+                lastName: String(lastName).trim(),
+                company: String(company).trim(),
+                title: String(title).trim(),
+                location: String(location).trim(),
                 addedAt: new Date(),
               });
               existingEmails.add(normalizedEmail);
@@ -429,7 +451,12 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
         const recipientTrackingId = generateTrackingId();
         const personalizedHtml = campaign.template
           .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
-          .replace(/\{\{email\}\}/g, contact.email);
+          .replace(/\{\{email\}\}/g, contact.email)
+          .replace(/\/firstname/gi, contact.firstName || contact.name || contact.email.split("@")[0])
+          .replace(/\/lastname/gi, contact.lastName || "")
+          .replace(/\/company/gi, contact.company || "")
+          .replace(/\/title/gi, contact.title || "")
+          .replace(/\/location/gi, contact.location || "");
 
         const htmlWithLinksTracked = wrapLinksWithTracking(
           personalizedHtml,

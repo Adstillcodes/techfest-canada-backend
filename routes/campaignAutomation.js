@@ -195,7 +195,12 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       try {
         const personalizedHtml = html
           .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
-          .replace(/\{\{email\}\}/g, contact.email);
+          .replace(/\{\{email\}\}/g, contact.email)
+          .replace(/\/firstname/gi, contact.firstName || contact.name || contact.email.split("@")[0])
+          .replace(/\/lastname/gi, contact.lastName || "")
+          .replace(/\/company/gi, contact.company || "")
+          .replace(/\/title/gi, contact.title || "")
+          .replace(/\/location/gi, contact.location || "");
 
         const htmlWithLinksTracked = wrapLinksWithTracking(
           personalizedHtml,
