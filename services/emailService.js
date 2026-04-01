@@ -213,20 +213,26 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     console.log(`[EMAIL SERVICE] Sending to: ${to}`);
     console.log(`[EMAIL SERVICE] Subject: ${subject}`);
     console.log(`[EMAIL SERVICE] HTML length: ${html ? html.length : 0}`);
-    console.log(`[EMAIL SERVICE] HTML preview: ${html ? html.substring(0, 200) : 'empty'}`);
+    console.log(`[EMAIL SERVICE] HTML preview: ${html ? html.substring(0, 300) : 'empty'}`);
     
-    await resend.emails.send({
+    const emailPayload = {
       from: "TechFest Canada <campaigns@thetechfestival.com>",
-      to,
-      subject,
-      html,
-    });
+      to: [to],  // Resend expects array
+      subject: subject,
+      html: html,
+    };
+    
+    console.log(`[EMAIL SERVICE] Resend payload:`, JSON.stringify(emailPayload, null, 2).substring(0, 500));
+    
+    const result = await resend.emails.send(emailPayload);
 
+    console.log(`[EMAIL SERVICE] Resend response:`, result);
     console.log(`Campaign email sent to ${to}`);
-    return { success: true };
+    return { success: true, result };
   } catch (err) {
     console.error("CAMPAIGN EMAIL ERROR:", err);
-    return { success: false, error: err.message };
+    console.error("CAMPAIGN EMAIL ERROR details:", err.response?.data || err.message);
+    return { success: false, error: err.message, details: err.response?.data };
   }
 }
 

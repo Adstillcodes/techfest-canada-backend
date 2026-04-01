@@ -33,7 +33,7 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-// Helper: Wrap HTML with proper email structure
+// Helper: Wrap HTML with proper email structure (Gmail/Outlook compatible)
 function wrapEmailHtml(html) {
   console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 100) : 'null/undefined'}`);
   
@@ -48,17 +48,39 @@ function wrapEmailHtml(html) {
     return html;
   }
   
-  // Wrap with email-friendly structure - preserve ALL content including Tiptap output
+  // Wrap with email-friendly structure - Gmail/Outlook compatible
   const wrapped = `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <!--[if mso]>
+  <style type="text/css">body, table, td {font-family: Arial, Helvetica, sans-serif !important;}</style>
+  <![endif]-->
+  <style type="text/css">
+    body { margin: 0 !important; padding: 0 !important; -webkit-text-size-adjust: 100% !important; -ms-text-size-adjust: 100% !important; }
+    img { border: 0 !important; height: auto !important; line-height: 100% !important; outline: none !important; text-decoration: none !important; }
+    table { border-collapse: collapse !important; mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; }
+    @media only screen and (max-width: 600px) {
+      .email-container { width: 100% !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;font-family:Arial,sans-serif;">
-  <div style="max-width:600px;margin:0 auto;padding:20px;">
-    ${html}
-  </div>
+<body style="margin: 0; padding: 0; background-color: #f4f0ff; font-family: Arial, Helvetica, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f0ff;">
+    <tr>
+      <td align="center" style="padding: 20px 10px;">
+        <table width="600" cellpadding="0" cellspacing="0" class="email-container" style="background-color: #ffffff; border-radius: 12px; overflow: hidden;">
+          <tr>
+            <td style="padding: 20px;">
+              ${html}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`;
   
