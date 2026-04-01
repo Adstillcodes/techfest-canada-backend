@@ -598,7 +598,8 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     if (!wrappedHtml) {
       return res.status(400).json({ error: "Email template is empty. Please add content and save the template before launching." });
     }
-    console.log(`[LAUNCH] Campaign "${campaign.name}" template validated, length: ${wrappedHtml.length}`);
+    console.log(`[LAUNCH] Campaign template validated, wrapped length: ${wrappedHtml.length}`);
+    console.log(`[LAUNCH] Final HTML preview:\n${wrappedHtml.substring(0, 1000)}`);
     
     const emailPromises = audience.contacts.map((contact) => {
       try {
@@ -606,6 +607,8 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
         console.log(`Contact data:`, { firstName: contact.firstName, lastName: contact.lastName, company: contact.company });
         
         const recipientTrackingId = generateTrackingId();
+        
+        // Replace personalization tokens
         const personalizedHtml = wrappedHtml
           .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
           .replace(/\{\{email\}\}/g, contact.email)
@@ -615,7 +618,8 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
           .replace(/\/title/gi, contact.title || "")
           .replace(/\/location/gi, contact.location || "");
 
-        console.log(`Personalized HTML sample:`, personalizedHtml.substring(0, 300));
+        console.log(`[LAUNCH] Personalized HTML length: ${personalizedHtml.length}`);
+        console.log(`[LAUNCH] Personalized HTML preview:\n${personalizedHtml.substring(0, 500)}`);
 
         const htmlWithLinksTracked = wrapLinksWithTracking(
           personalizedHtml,
@@ -624,9 +628,13 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
           baseUrl
         );
 
-        const htmlWithTracking = htmlWithLinksTracked + `
-          <img src="${baseUrl}/api/track/open/${campaignIdStr}/${contact.email}" width="1" height="1" style="display:none" alt="" />
-        `;
+        console.log(`[LAUNCH] After link tracking, HTML length: ${htmlWithLinksTracked.length}`);
+
+        const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignIdStr}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
+        const htmlWithTracking = htmlWithLinksTracked + trackingPixel;
+
+        console.log(`[LAUNCH] Final HTML to send (first 500 chars):\n${htmlWithTracking.substring(0, 500)}`);
+        console.log(`[LAUNCH] Final HTML to send (last 500 chars):\n${htmlWithTracking.substring(htmlWithTracking.length - 500)}`);
 
         return sendCampaignEmail({
           to: contact.email,

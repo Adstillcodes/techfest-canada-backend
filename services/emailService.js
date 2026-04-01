@@ -210,28 +210,57 @@ export async function sendTicketEmail({ email, name, ticketId, tier }) {
 
 export async function sendCampaignEmail({ to, subject, html, campaignId, recipientEmail, recipientTrackingId, baseUrl }) {
   try {
-    console.log(`[EMAIL SERVICE] Sending to: ${to}`);
+    console.log(`[EMAIL SERVICE] ===== START SEND =====`);
+    console.log(`[EMAIL SERVICE] To: ${to}`);
     console.log(`[EMAIL SERVICE] Subject: ${subject}`);
     console.log(`[EMAIL SERVICE] HTML length: ${html ? html.length : 0}`);
-    console.log(`[EMAIL SERVICE] HTML preview: ${html ? html.substring(0, 300) : 'empty'}`);
+    console.log(`[EMAIL SERVICE] HTML type: ${typeof html}`);
+    console.log(`[EMAIL SERVICE] HTML is string: ${typeof html === 'string'}`);
+    console.log(`[EMAIL SERVICE] HTML first 100 chars: ${html ? html.substring(0, 100) : 'empty'}`);
+    console.log(`[EMAIL SERVICE] HTML last 100 chars: ${html ? html.substring(html.length - 100) : 'empty'}`);
+    
+    // Validate HTML before sending
+    if (!html || typeof html !== 'string') {
+      console.error(`[EMAIL SERVICE] ERROR: HTML is invalid - type: ${typeof html}, value: ${html}`);
+      return { success: false, error: 'Invalid HTML' };
+    }
+    
+    // Check for basic HTML structure
+    if (!html.includes('<html') || !html.includes('</html>')) {
+      console.error(`[EMAIL SERVICE] WARNING: HTML may be malformed - missing html tags`);
+    }
+    if (!html.includes('<body') || !html.includes('</body>')) {
+      console.error(`[EMAIL SERVICE] WARNING: HTML may be malformed - missing body tags`);
+    }
     
     const emailPayload = {
       from: "TechFest Canada <campaigns@thetechfestival.com>",
-      to: [to],  // Resend expects array
+      to: [to],
       subject: subject,
       html: html,
     };
     
-    console.log(`[EMAIL SERVICE] Resend payload:`, JSON.stringify(emailPayload, null, 2).substring(0, 500));
+    console.log(`[EMAIL SERVICE] Payload from: ${emailPayload.from}`);
+    console.log(`[EMAIL SERVICE] Payload to: ${emailPayload.to}`);
+    console.log(`[EMAIL SERVICE] Payload subject: ${emailPayload.subject}`);
+    console.log(`[EMAIL SERVICE] Payload html length: ${emailPayload.html ? emailPayload.html.length : 0}`);
     
     const result = await resend.emails.send(emailPayload);
 
-    console.log(`[EMAIL SERVICE] Resend response:`, result);
-    console.log(`Campaign email sent to ${to}`);
+    console.log(`[EMAIL SERVICE] Resend result:`, result);
+    console.log(`[EMAIL SERVICE] ===== END SEND =====`);
+    
+    if (result.error) {
+      console.error(`[EMAIL SERVICE] Resend error:`, result.error);
+      return { success: false, error: result.error };
+    }
+    
     return { success: true, result };
   } catch (err) {
-    console.error("CAMPAIGN EMAIL ERROR:", err);
-    console.error("CAMPAIGN EMAIL ERROR details:", err.response?.data || err.message);
+    console.error("[EMAIL SERVICE] ===== ERROR =====");
+    console.error("[EMAIL SERVICE] Error message:", err.message);
+    console.error("[EMAIL SERVICE] Error stack:", err.stack);
+    console.error("[EMAIL SERVICE] Error response:", err.response?.data);
     return { success: false, error: err.message, details: err.response?.data };
   }
 }
