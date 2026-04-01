@@ -160,24 +160,31 @@ router.put("/templates/:id", authMiddleware, adminMiddleware, async (req, res) =
 
 router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { subject, htmlBody, textBody } = req.body;
+    const { subject, htmlBody, textBody, audienceId } = req.body;
     const template = await CampaignTemplate.findById(req.params.id);
     if (!template) {
       return res.status(404).json({ error: "Template not found" });
     }
 
-    const audienceMap = {
-      "Sponsors": "Sponsor Leads",
-      "Exhibitors": "Exhibitor Leads",
-      "Delegates": "Delegate Prospects",
-      "Visitors": "Visitor Prospects",
-    };
-
-    const audienceName = audienceMap[template.audience];
-    const audience = await Audience.findOne({ name: audienceName });
+    let audience;
+    if (audienceId) {
+      audience = await Audience.findById(audienceId);
+      if (!audience) {
+        return res.status(400).json({ error: "Audience not found" });
+      }
+    } else {
+      const audienceMap = {
+        "Sponsors": "Sponsor Leads",
+        "Exhibitors": "Exhibitor Leads",
+        "Delegates": "Delegate Prospects",
+        "Visitors": "Visitor Prospects",
+      };
+      const audienceName = audienceMap[template.audience];
+      audience = await Audience.findOne({ name: audienceName });
+    }
 
     if (!audience || audience.contacts.length === 0) {
-      return res.status(400).json({ error: `No contacts in ${audienceName} audience` });
+      return res.status(400).json({ error: `No contacts in the selected audience` });
     }
 
     const finalSubject = subject || template.subject;
