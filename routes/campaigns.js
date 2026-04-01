@@ -42,6 +42,41 @@ function generateTrackingId() {
   return crypto.randomBytes(16).toString("hex");
 }
 
+// Helper: Sanitize HTML to fix common issues and remove dangerous content
+function sanitizeHtml(html) {
+  if (!html) return html;
+  
+  let sanitized = html;
+  
+  // Fix broken title tags: <title>text<tag> -> <title>text</title>
+  // This handles cases like <title>Title<Developer> or <title>Title<Other>
+  sanitized = sanitized.replace(/<title>([^<]*)<(?!\/title>)/gi, '<title>$1</title>');
+  
+  // If title tag is missing closing, add it
+  sanitized = sanitized.replace(/<title>([^<]*?)(?=<)(?!<\/title>)/gi, '<title>$1</title>');
+  
+  // Remove script tags and their content entirely
+  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  
+  // Remove iframe tags
+  sanitized = sanitized.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
+  
+  // Remove on* event handlers (e.g., onclick, onload, onerror)
+  sanitized = sanitized.replace(/\s+on\w+="[^"]*"/gi, '');
+  sanitized = sanitized.replace(/\s+on\w+='[^']*'/gi, '');
+  
+  // Remove javascript: URLs
+  sanitized = sanitized.replace(/javascript:/gi, '');
+  
+  // Fix common encoding issues
+  sanitized = sanitized.replace(/&lt;/g, '<');
+  sanitized = sanitized.replace(/&gt;/g, '>');
+  
+  console.log(`[SANITIZE] Input length: ${html.length}, Output length: ${sanitized.length}`);
+  
+  return sanitized;
+}
+
 // Helper: Wrap HTML with proper email structure (Gmail/Outlook compatible)
 function wrapEmailHtml(html) {
   console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 80) : 'null/undefined'}`);
@@ -562,12 +597,17 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
 
     if (name) campaign.name = name;
     if (subject) campaign.subject = subject;
-    if (template !== undefined) campaign.template = template; // Save even empty strings
+    if (template !== undefined) {
+      // Sanitize HTML before saving to fix common issues
+      const sanitizedTemplate = sanitizeHtml(template);
+      campaign.template = sanitizedTemplate;
+      console.log(`[PUT /campaigns/:id] Sanitized template length: ${sanitizedTemplate.length}`);
+    }
     if (scheduledAt) campaign.scheduledAt = scheduledAt;
 
     await campaign.save();
     
-    console.log(`[PUT /campaigns/:id] Saved template length: ${template ? template.length : 0}`);
+    console.log(`[PUT /campaigns/:id] Saved template length: ${campaign.template ? campaign.template.length : 0}`);
     console.log(`[PUT /campaigns/:id] Campaign template now: ${campaign.template ? campaign.template.substring(0, 100) : 'empty'}`);
 
     res.json({
