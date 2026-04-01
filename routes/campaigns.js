@@ -111,13 +111,13 @@ router.post("/audiences/import", authMiddleware, adminMiddleware, upload.single(
       stream
         .pipe(csvParser())
         .on("data", (row) => {
-          const email = row.email || row.Email || row.EMAIL;
+          const email = row.email || row.Email || row.EMAIL || row.EmailAddress || row["Email Address"];
           const nameField = row.name || row.Name || row.NAME || "";
-          const firstName = row.firstname || row.firstName || row["Person FirstName"] || row.Person_FirstName || "";
-          const lastName = row.lastname || row.lastName || row["Person LastName"] || row.Person_LastName || "";
-          const company = row.company || row.companyName || row["Company Name"] || row.Company_Name || "";
-          const title = row.title || row.jobTitle || row["Person Title"] || row.Person_Title || "";
-          const location = row.location || row["Person Location"] || row.Person_Location || "";
+          const firstName = row.firstname || row.firstName || row.FirstName || row["First Name"] || row.Person_FirstName || row["Person FirstName"] || "";
+          const lastName = row.lastname || row.lastName || row.LastName || row["Last Name"] || row.Person_LastName || row["Person LastName"] || "";
+          const company = row.company || row.Company || row.companyName || row["Company Name"] || row.Company_Name || "";
+          const title = row.title || row.Title || row.jobTitle || row["Job Title"] || row.Person_Title || row["Person Title"] || "";
+          const location = row.location || row.Location || row["Person Location"] || row.Person_Location || "";
           
           if (email && email.includes("@")) {
             contacts.push({
@@ -287,13 +287,13 @@ router.post("/audiences/:id/import", authMiddleware, adminMiddleware, upload.sin
       stream
         .pipe(csvParser())
         .on("data", (row) => {
-          const email = row.email || row.Email || row.EMAIL;
+          const email = row.email || row.Email || row.EMAIL || row.EmailAddress || row["Email Address"];
           const nameField = row.name || row.Name || row.NAME || "";
-          const firstName = row.firstname || row.firstName || row["Person FirstName"] || row.Person_FirstName || "";
-          const lastName = row.lastname || row.lastName || row["Person LastName"] || row.Person_LastName || "";
-          const company = row.company || row.companyName || row["Company Name"] || row.Company_Name || "";
-          const title = row.title || row.jobTitle || row["Person Title"] || row.Person_Title || "";
-          const location = row.location || row["Person Location"] || row.Person_Location || "";
+          const firstName = row.firstname || row.firstName || row.FirstName || row["First Name"] || row.Person_FirstName || row["Person FirstName"] || "";
+          const lastName = row.lastname || row.lastName || row.LastName || row["Last Name"] || row.Person_LastName || row["Person LastName"] || "";
+          const company = row.company || row.Company || row.companyName || row["Company Name"] || row.Company_Name || "";
+          const title = row.title || row.Title || row.jobTitle || row["Job Title"] || row.Person_Title || row["Person Title"] || "";
+          const location = row.location || row.Location || row["Person Location"] || row.Person_Location || "";
           
           if (email && email.includes("@")) {
             const normalizedEmail = email.toLowerCase().trim();
