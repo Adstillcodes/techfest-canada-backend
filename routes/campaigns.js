@@ -44,18 +44,34 @@ function generateTrackingId() {
 
 // Helper: Wrap HTML with proper email structure (Gmail/Outlook compatible)
 function wrapEmailHtml(html) {
-  console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 100) : 'null/undefined'}`);
+  console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 80) : 'null/undefined'}`);
   
   if (!html || (typeof html === 'string' && html.trim() === "")) {
     console.log(`[WRAP] HTML is empty or whitespace only, returning null`);
     return null;
   }
   
-  // Check if already has proper structure - return as-is
-  if (html.includes("<!DOCTYPE html>") || (html.includes("<html") && html.includes("<body"))) {
-    console.log(`[WRAP] HTML already has proper structure, returning as-is`);
+  // Check if already has COMPLETE HTML structure - DOCTYPE + html + head + body
+  const hasDoctype = html.includes("<!DOCTYPE html>");
+  const hasHtmlOpen = html.includes("<html");
+  const hasHtmlClose = html.includes("</html>");
+  const hasBodyOpen = html.includes("<body");
+  const hasBodyClose = html.includes("</body>");
+  
+  // If has DOCTYPE AND closing html/body tags, it's complete - return as-is
+  if (hasDoctype && hasHtmlClose && hasBodyClose) {
+    console.log(`[WRAP] HTML already has COMPLETE structure (DOCTYPE + html + body), returning as-is`);
     return html;
   }
+  
+  // If has html/body open AND closing tags, it's complete enough - return as-is
+  if (hasHtmlOpen && hasHtmlClose && hasBodyOpen && hasBodyClose) {
+    console.log(`[WRAP] HTML already has complete structure (html + body tags), returning as-is`);
+    return html;
+  }
+  
+  // If it's just a simple table without any HTML structure, wrap it
+  console.log(`[WRAP] HTML needs wrapping - wrapping with email-friendly structure`);
   
   // Wrap with email-friendly structure - Gmail/Outlook compatible
   const wrapped = `<!DOCTYPE html>
