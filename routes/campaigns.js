@@ -111,13 +111,26 @@ router.post("/audiences/import", authMiddleware, adminMiddleware, upload.single(
       stream
         .pipe(csvParser())
         .on("data", (row) => {
-          const email = row.email || row.Email || row.EMAIL || row.EmailAddress || row["Email Address"];
-          const nameField = row.name || row.Name || row.NAME || "";
-          const firstName = row.firstname || row.firstName || row.FirstName || row["First Name"] || row.Person_FirstName || row["Person FirstName"] || "";
-          const lastName = row.lastname || row.lastName || row.LastName || row["Last Name"] || row.Person_LastName || row["Person LastName"] || "";
-          const company = row.company || row.Company || row.companyName || row["Company Name"] || row.Company_Name || "";
-          const title = row.title || row.Title || row.jobTitle || row["Job Title"] || row.Person_Title || row["Person Title"] || "";
-          const location = row.location || row.Location || row["Person Location"] || row.Person_Location || "";
+          // Get all keys and trim them to handle "First Name " with trailing space
+          const keys = Object.keys(row);
+          const getValue = (patterns) => {
+            for (const pattern of patterns) {
+              for (const key of keys) {
+                if (key.trim().toLowerCase() === pattern.toLowerCase()) {
+                  return row[key];
+                }
+              }
+            }
+            return "";
+          };
+
+          const email = getValue(["email", "Email", "EMAIL", "EmailAddress", "Email Address"]);
+          const nameField = getValue(["name", "Name", "NAME"]);
+          const firstName = getValue(["firstname", "firstName", "First Name", "FirstName", "Person FirstName", "Person_FirstName"]);
+          const lastName = getValue(["lastname", "lastName", "Last Name", "LastName", "Person LastName", "Person_LastName"]);
+          const company = getValue(["company", "Company", "companyName", "Company Name", "Company_Name"]);
+          const title = getValue(["title", "Title", "jobTitle", "Job Title", "Person Title", "Person_Title"]);
+          const location = getValue(["location", "Location", "Person Location", "Person_Location"]);
           
           if (email && email.includes("@")) {
             contacts.push({
@@ -287,13 +300,25 @@ router.post("/audiences/:id/import", authMiddleware, adminMiddleware, upload.sin
       stream
         .pipe(csvParser())
         .on("data", (row) => {
-          const email = row.email || row.Email || row.EMAIL || row.EmailAddress || row["Email Address"];
-          const nameField = row.name || row.Name || row.NAME || "";
-          const firstName = row.firstname || row.firstName || row.FirstName || row["First Name"] || row.Person_FirstName || row["Person FirstName"] || "";
-          const lastName = row.lastname || row.lastName || row.LastName || row["Last Name"] || row.Person_LastName || row["Person LastName"] || "";
-          const company = row.company || row.Company || row.companyName || row["Company Name"] || row.Company_Name || "";
-          const title = row.title || row.Title || row.jobTitle || row["Job Title"] || row.Person_Title || row["Person Title"] || "";
-          const location = row.location || row.Location || row["Person Location"] || row.Person_Location || "";
+          const keys = Object.keys(row);
+          const getValue = (patterns) => {
+            for (const pattern of patterns) {
+              for (const key of keys) {
+                if (key.trim().toLowerCase() === pattern.toLowerCase()) {
+                  return row[key];
+                }
+              }
+            }
+            return "";
+          };
+
+          const email = getValue(["email", "Email", "EMAIL", "EmailAddress", "Email Address"]);
+          const nameField = getValue(["name", "Name", "NAME"]);
+          const firstName = getValue(["firstname", "firstName", "First Name", "FirstName", "Person FirstName", "Person_FirstName"]);
+          const lastName = getValue(["lastname", "lastName", "Last Name", "LastName", "Person LastName", "Person_LastName"]);
+          const company = getValue(["company", "Company", "companyName", "Company Name", "Company_Name"]);
+          const title = getValue(["title", "Title", "jobTitle", "Job Title", "Person Title", "Person_Title"]);
+          const location = getValue(["location", "Location", "Person Location", "Person_Location"]);
           
           if (email && email.includes("@")) {
             const normalizedEmail = email.toLowerCase().trim();
