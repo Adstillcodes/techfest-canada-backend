@@ -605,8 +605,15 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
 
     const baseUrl = process.env.API_URL || "https://techfest-canada-backend.onrender.com";
 
+    // Validate and wrap template like production
+    const wrappedHtml = wrapEmailHtml(campaign.template);
+    if (!wrappedHtml) {
+      return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending test." });
+    }
+    console.log(`[TEST EMAIL] Template validated for test, length: ${wrappedHtml.length}`);
+
     // Apply personalization tokens for test email
-    const personalizedHtml = campaign.template
+    const personalizedHtml = wrappedHtml
       .replace(/\{\{name\}\}/g, email.split("@")[0])
       .replace(/\{\{email\}\}/g, email)
       .replace(/\/firstname/gi, "Test")
@@ -614,6 +621,8 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
       .replace(/\/company/gi, "Test Company")
       .replace(/\/title/gi, "CEO")
       .replace(/\/location/gi, "Toronto");
+
+    console.log(`[TEST EMAIL] Personalized HTML sample:`, personalizedHtml.substring(0, 300));
 
     const htmlWithLinksTracked = wrapLinksWithTracking(
       personalizedHtml,
