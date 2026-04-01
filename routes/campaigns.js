@@ -73,7 +73,7 @@ function wrapEmailHtml(html) {
   // If it's just a simple table without any HTML structure, wrap it
   console.log(`[WRAP] HTML needs wrapping - wrapping with email-friendly structure`);
   
-  // Wrap with email-friendly structure - Gmail/Outlook compatible
+  // Wrap with email-friendly structure - Gmail/Outlook compatible (no title tag)
   const wrapped = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -686,7 +686,14 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
         console.log(`[LAUNCH] After link tracking, HTML length: ${htmlWithLinksTracked.length}`);
 
         const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignIdStr}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
-        const htmlWithTracking = htmlWithLinksTracked + trackingPixel;
+        // Insert tracking pixel INSIDE body tag, not after </html>
+        let htmlWithTracking = htmlWithLinksTracked;
+        if (htmlWithLinksTracked.includes('</body>')) {
+          htmlWithTracking = htmlWithLinksTracked.replace('</body>', trackingPixel + '</body>');
+        } else {
+          // Fallback: append before </html> if </body> not found
+          htmlWithTracking = htmlWithLinksTracked.replace('</html>', trackingPixel + '</html>');
+        }
 
         console.log(`[LAUNCH] Final HTML to send (first 500 chars):\n${htmlWithTracking.substring(0, 500)}`);
         console.log(`[LAUNCH] Final HTML to send (last 500 chars):\n${htmlWithTracking.substring(htmlWithTracking.length - 500)}`);
@@ -764,9 +771,14 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
       baseUrl
     );
 
-    const htmlWithTracking = htmlWithLinksTracked + `
-      <img src="${baseUrl}/api/track/open/${campaign._id}/${email}" width="1" height="1" style="display:none" alt="" />
-    `;
+    // Insert tracking pixel INSIDE body tag, not after </html>
+    const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaign._id}/${email}" width="1" height="1" style="display:none" alt="" />`;
+    let htmlWithTracking = htmlWithLinksTracked;
+    if (htmlWithLinksTracked.includes('</body>')) {
+      htmlWithTracking = htmlWithLinksTracked.replace('</body>', trackingPixel + '</body>');
+    } else {
+      htmlWithTracking = htmlWithLinksTracked.replace('</html>', trackingPixel + '</html>');
+    }
 
     await sendCampaignEmail({
       to: email,

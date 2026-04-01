@@ -315,6 +315,14 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
         );
 
         const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
+        
+        // Insert tracking pixel INSIDE body tag, not after </html>
+        let htmlWithTracking = htmlWithLinksTracked;
+        if (htmlWithLinksTracked.includes('</body>')) {
+          htmlWithTracking = htmlWithLinksTracked.replace('</body>', trackingPixel + '</body>');
+        } else {
+          htmlWithTracking = htmlWithLinksTracked.replace('</html>', trackingPixel + '</html>');
+        }
 
         const tracking = new EmailTracking({
           campaignId: campaignIdPrefix,
@@ -326,7 +334,7 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
         return sendCampaignEmail({
           to: contact.email,
           subject: finalSubject,
-          html: htmlWithLinksTracked + trackingPixel,
+          html: htmlWithTracking,
           campaignId: campaignIdPrefix,
           recipientEmail: contact.email,
           text: textBody || template.textBody,

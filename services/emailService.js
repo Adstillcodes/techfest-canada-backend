@@ -216,10 +216,16 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     console.log(`[EMAIL SERVICE] HTML length: ${html ? html.length : 0}`);
     console.log(`[EMAIL SERVICE] HTML type: ${typeof html}`);
     console.log(`[EMAIL SERVICE] HTML is string: ${typeof html === 'string'}`);
-    console.log(`[EMAIL SERVICE] HTML first 100 chars: ${html ? html.substring(0, 100) : 'empty'}`);
-    console.log(`[EMAIL SERVICE] HTML last 100 chars: ${html ? html.substring(html.length - 100) : 'empty'}`);
-    console.log(`[EMAIL SERVICE] HTML contains </body>: ${html ? html.includes('</body>') : false}`);
-    console.log(`[EMAIL SERVICE] HTML contains </html>: ${html ? html.includes('</html>') : false}`);
+    console.log(`[EMAIL SERVICE] HTML length: ${html.length}`);
+    console.log(`[EMAIL SERVICE] HTML first 200 chars:\n${html.substring(0, 200)}`);
+    console.log(`[EMAIL SERVICE] HTML middle 200 chars:\n${html.substring(Math.floor(html.length/2 - 100), Math.floor(html.length/2 + 100))}`);
+    console.log(`[EMAIL SERVICE] HTML last 200 chars:\n${html.substring(html.length - 200)}`);
+    console.log(`[EMAIL SERVICE] HTML contains </body>: ${html.includes('</body>')}`);
+    console.log(`[EMAIL SERVICE] HTML contains </html>: ${html.includes('</html>')}`);
+    console.log(`[EMAIL SERVICE] HTML contains <title>: ${html.includes('<title>')}`);
+    console.log(`[EMAIL SERVICE] HTML contains </title>: ${html.includes('</title>')}`);
+    console.log(`[EMAIL SERVICE] HTML contains <table: ${html.includes('<table')}`);
+    console.log(`[EMAIL SERVICE] HTML contains </table>: ${html.includes('</table>')}`);
     
     // Validate HTML before sending
     if (!html || typeof html !== 'string') {
@@ -235,25 +241,7 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
       console.error(`[EMAIL SERVICE] WARNING: HTML may be malformed - missing body tags`);
     }
     
-    // Generate plain text version from HTML for email clients that prefer text
-    let textContent = '';
-    try {
-      textContent = html
-        .replace(/<[^>]+>/g, ' ')  // Remove HTML tags
-        .replace(/\s+/g, ' ')        // Collapse whitespace
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .trim();
-      console.log(`[EMAIL SERVICE] Text version generated successfully, length: ${textContent.length}`);
-    } catch (err) {
-      console.error(`[EMAIL SERVICE] Error generating text version:`, err.message);
-      textContent = '';
-    }
-    
-    // Build payload - include text only if it's valid
+    // Log the complete payload as JSON for inspection
     const emailPayload = {
       from: "TechFest Canada <campaigns@thetechfestival.com>",
       to: [to],
@@ -261,16 +249,13 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
       html: html,
     };
     
-    // Only add text if it's not empty and has meaningful content
-    if (textContent && textContent.length > 10) {
-      emailPayload.text = textContent;
-    }
-    
-    console.log(`[EMAIL SERVICE] Payload from: ${emailPayload.from}`);
-    console.log(`[EMAIL SERVICE] Payload to: ${emailPayload.to}`);
-    console.log(`[EMAIL SERVICE] Payload subject: ${emailPayload.subject}`);
-    console.log(`[EMAIL SERVICE] Payload html length: ${emailPayload.html ? emailPayload.html.length : 0}`);
-    console.log(`[EMAIL SERVICE] Payload has text: ${!!emailPayload.text}`);
+    console.log(`[EMAIL SERVICE] Full payload JSON (truncated):`);
+    console.log(`  from: ${emailPayload.from}`);
+    console.log(`  to: ${emailPayload.to}`);
+    console.log(`  subject: ${emailPayload.subject}`);
+    console.log(`  html length: ${emailPayload.html.length}`);
+    console.log(`  html starts with: ${emailPayload.html.substring(0, 50)}`);
+    console.log(`  html ends with: ${emailPayload.html.substring(emailPayload.html.length - 50)}`);
     
     const result = await resend.emails.send(emailPayload);
 
