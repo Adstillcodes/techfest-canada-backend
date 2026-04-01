@@ -585,6 +585,13 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
       return res.status(404).json({ error: "Campaign not found" });
     }
 
+    console.log(`[LAUNCH] ===== START LAUNCH =====`);
+    console.log(`[LAUNCH] Campaign: ${campaign.name} (ID: ${campaign._id})`);
+    console.log(`[LAUNCH] Template exists: ${!!campaign.template}`);
+    console.log(`[LAUNCH] Template length: ${campaign.template ? campaign.template.length : 0}`);
+    console.log(`[LAUNCH] Template first 200 chars:\n${campaign.template ? campaign.template.substring(0, 200) : 'EMPTY'}`);
+    console.log(`[LAUNCH] Template last 200 chars:\n${campaign.template ? campaign.template.substring(campaign.template.length - 200) : 'EMPTY'}`);
+
     if (campaign.status === "sent") {
       return res.status(400).json({ error: "Campaign already sent" });
     }

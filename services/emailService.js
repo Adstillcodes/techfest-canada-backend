@@ -218,6 +218,8 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     console.log(`[EMAIL SERVICE] HTML is string: ${typeof html === 'string'}`);
     console.log(`[EMAIL SERVICE] HTML first 100 chars: ${html ? html.substring(0, 100) : 'empty'}`);
     console.log(`[EMAIL SERVICE] HTML last 100 chars: ${html ? html.substring(html.length - 100) : 'empty'}`);
+    console.log(`[EMAIL SERVICE] HTML contains </body>: ${html ? html.includes('</body>') : false}`);
+    console.log(`[EMAIL SERVICE] HTML contains </html>: ${html ? html.includes('</html>') : false}`);
     
     // Validate HTML before sending
     if (!html || typeof html !== 'string') {
@@ -234,31 +236,41 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     }
     
     // Generate plain text version from HTML for email clients that prefer text
-    const textContent = html
-      .replace(/<[^>]+>/g, ' ')  // Remove HTML tags
-      .replace(/\s+/g, ' ')        // Collapse whitespace
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .trim();
+    let textContent = '';
+    try {
+      textContent = html
+        .replace(/<[^>]+>/g, ' ')  // Remove HTML tags
+        .replace(/\s+/g, ' ')        // Collapse whitespace
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .trim();
+      console.log(`[EMAIL SERVICE] Text version generated successfully, length: ${textContent.length}`);
+    } catch (err) {
+      console.error(`[EMAIL SERVICE] Error generating text version:`, err.message);
+      textContent = '';
+    }
     
-    console.log(`[EMAIL SERVICE] Text version length: ${textContent.length}`);
-    
+    // Build payload - include text only if it's valid
     const emailPayload = {
       from: "TechFest Canada <campaigns@thetechfestival.com>",
       to: [to],
       subject: subject,
       html: html,
-      text: textContent,  // Add plain text fallback
     };
+    
+    // Only add text if it's not empty and has meaningful content
+    if (textContent && textContent.length > 10) {
+      emailPayload.text = textContent;
+    }
     
     console.log(`[EMAIL SERVICE] Payload from: ${emailPayload.from}`);
     console.log(`[EMAIL SERVICE] Payload to: ${emailPayload.to}`);
     console.log(`[EMAIL SERVICE] Payload subject: ${emailPayload.subject}`);
     console.log(`[EMAIL SERVICE] Payload html length: ${emailPayload.html ? emailPayload.html.length : 0}`);
-    console.log(`[EMAIL SERVICE] Payload text length: ${emailPayload.text ? emailPayload.text.length : 0}`);
+    console.log(`[EMAIL SERVICE] Payload has text: ${!!emailPayload.text}`);
     
     const result = await resend.emails.send(emailPayload);
 
