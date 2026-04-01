@@ -233,17 +233,32 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
       console.error(`[EMAIL SERVICE] WARNING: HTML may be malformed - missing body tags`);
     }
     
+    // Generate plain text version from HTML for email clients that prefer text
+    const textContent = html
+      .replace(/<[^>]+>/g, ' ')  // Remove HTML tags
+      .replace(/\s+/g, ' ')        // Collapse whitespace
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .trim();
+    
+    console.log(`[EMAIL SERVICE] Text version length: ${textContent.length}`);
+    
     const emailPayload = {
       from: "TechFest Canada <campaigns@thetechfestival.com>",
       to: [to],
       subject: subject,
       html: html,
+      text: textContent,  // Add plain text fallback
     };
     
     console.log(`[EMAIL SERVICE] Payload from: ${emailPayload.from}`);
     console.log(`[EMAIL SERVICE] Payload to: ${emailPayload.to}`);
     console.log(`[EMAIL SERVICE] Payload subject: ${emailPayload.subject}`);
     console.log(`[EMAIL SERVICE] Payload html length: ${emailPayload.html ? emailPayload.html.length : 0}`);
+    console.log(`[EMAIL SERVICE] Payload text length: ${emailPayload.text ? emailPayload.text.length : 0}`);
     
     const result = await resend.emails.send(emailPayload);
 

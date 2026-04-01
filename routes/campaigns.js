@@ -456,6 +456,7 @@ router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
       status: c.status,
       audienceId: c.audienceId?._id,
       audienceName: c.audienceId?.name,
+      template: c.template,  // Include template field
       stats: c.stats,
       scheduledAt: c.scheduledAt,
       sentAt: c.sentAt,
@@ -499,6 +500,37 @@ router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("Create campaign error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET single campaign by ID
+router.get("/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const campaign = await Campaign.findById(req.params.id).populate("audienceId", "name");
+    
+    if (!campaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    console.log(`[GET /campaigns/:id] Found campaign: ${campaign.name}, template length: ${campaign.template ? campaign.template.length : 0}`);
+    
+    res.json({
+      _id: campaign._id,
+      name: campaign.name,
+      subject: campaign.subject,
+      status: campaign.status,
+      audienceId: campaign.audienceId?._id,
+      audienceName: campaign.audienceId?.name,
+      template: campaign.template,
+      stats: campaign.stats,
+      scheduledAt: campaign.scheduledAt,
+      sentAt: campaign.sentAt,
+      createdAt: campaign.createdAt,
+      createdBy: campaign.createdBy,
+    });
+  } catch (err) {
+    console.error("Fetch campaign error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -721,6 +753,9 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
       recipientEmail: email,
     });
 
+    // Delete existing tracking record for this test email to avoid duplicate key errors
+    await EmailTracking.deleteOne({ campaignId: campaign._id, email: email });
+    
     const tracking = new EmailTracking({
       campaignId: campaign._id,
       email: email,
