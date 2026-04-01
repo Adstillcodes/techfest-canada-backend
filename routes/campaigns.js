@@ -42,6 +42,37 @@ function generateTrackingId() {
   return crypto.randomBytes(16).toString("hex");
 }
 
+// Helper: Wrap HTML with proper email structure
+function wrapEmailHtml(html) {
+  if (!html || html.trim() === "") {
+    return null;
+  }
+  
+  // Clean up empty Tiptap elements
+  let cleanedHtml = html
+    .replace(/<p><br><\/p>/gi, "")
+    .replace(/<p><\/p>/gi, "")
+    .replace(/<span><\/span>/gi, "")
+    .trim();
+  
+  // If already has proper structure, return as-is
+  if (cleanedHtml.includes("<!DOCTYPE html>") || (cleanedHtml.includes("<html") && cleanedHtml.includes("<body"))) {
+    return cleanedHtml;
+  }
+  
+  // Wrap with email-friendly structure
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;">
+  ${cleanedHtml}
+</body>
+</html>`;
+}
+
 router.get("/audiences", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const audiences = await Audience.find().sort({ createdAt: -1 });
@@ -491,6 +522,13 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     await Promise.all(trackingRecords);
 
     const campaignIdStr = campaign._id.toString();
+
+    // Validate template before sending
+    const wrappedHtml = wrapEmailHtml(campaign.template);
+    if (!wrappedHtml) {
+      return res.status(400).json({ error: "Email template is empty. Please add content and save the template before launching." });
+    }
+    console.log(`[LAUNCH] Campaign "${campaign.name}" template validated, length: ${wrappedHtml.length}`);
     
     const emailPromises = audience.contacts.map((contact) => {
       try {
@@ -498,7 +536,7 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
         console.log(`Contact data:`, { firstName: contact.firstName, lastName: contact.lastName, company: contact.company });
         
         const recipientTrackingId = generateTrackingId();
-        const personalizedHtml = campaign.template
+        const personalizedHtml = wrappedHtml
           .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
           .replace(/\{\{email\}\}/g, contact.email)
           .replace(/\/firstname/gi, contact.firstName || contact.name || contact.email.split("@")[0])
@@ -507,7 +545,7 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
           .replace(/\/title/gi, contact.title || "")
           .replace(/\/location/gi, contact.location || "");
 
-        console.log(`Personalized HTML sample:`, personalizedHtml.substring(0, 200));
+        console.log(`Personalized HTML sample:`, personalizedHtml.substring(0, 300));
 
         const htmlWithLinksTracked = wrapLinksWithTracking(
           personalizedHtml,

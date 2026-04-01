@@ -33,6 +33,37 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
+// Helper: Wrap HTML with proper email structure
+function wrapEmailHtml(html) {
+  if (!html || html.trim() === "") {
+    return null;
+  }
+  
+  // Clean up empty Tiptap elements
+  let cleanedHtml = html
+    .replace(/<p><br><\/p>/gi, "")
+    .replace(/<p><\/p>/gi, "")
+    .replace(/<span><\/span>/gi, "")
+    .trim();
+  
+  // If already has proper structure, return as-is
+  if (cleanedHtml.includes("<!DOCTYPE html>") || (cleanedHtml.includes("<html") && cleanedHtml.includes("<body"))) {
+    return cleanedHtml;
+  }
+  
+  // Wrap with email-friendly structure
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;">
+  ${cleanedHtml}
+</body>
+</html>`;
+}
+
 router.post("/seed", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const [templateResults, audiences] = await Promise.all([
@@ -194,13 +225,23 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       html = generateEmailHtml(template);
     }
 
+    // Validate template before sending
+    const wrappedHtml = wrapEmailHtml(html);
+    if (!wrappedHtml) {
+      return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending." });
+    }
+    console.log(`[AUTOMATION SEND] Template "${template.subject}" validated, length: ${wrappedHtml.length}`);
+
     const trackingRecords = [];
     const templateIdStr = template._id.toString();
     const campaignIdPrefix = `tpl-${templateIdStr}`;
     
     const emailPromises = audience.contacts.map((contact) => {
       try {
-        const personalizedHtml = html
+        console.log(`[AUTOMATION] Processing contact: ${contact.email}`);
+        console.log(`[AUTOMATION] Contact data:`, { firstName: contact.firstName, lastName: contact.lastName, company: contact.company });
+        
+        const personalizedHtml = wrappedHtml
           .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
           .replace(/\{\{email\}\}/g, contact.email)
           .replace(/\/firstname/gi, contact.firstName || contact.name || contact.email.split("@")[0])
@@ -208,6 +249,8 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
           .replace(/\/company/gi, contact.company || "")
           .replace(/\/title/gi, contact.title || "")
           .replace(/\/location/gi, contact.location || "");
+
+        console.log(`[AUTOMATION] Personalized HTML sample:`, personalizedHtml.substring(0, 300));
 
         const htmlWithLinksTracked = wrapLinksWithTracking(
           personalizedHtml,
