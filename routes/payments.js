@@ -31,13 +31,19 @@ async function getUserFromReq(req) {
 router.post("/create-checkout", async (req, res) => {
   try {
 
-    const { tier, type = "ticket" } = req.body;
+    const { tier, type = "ticket", price } = req.body;
     const normalizedTier = tier.toLowerCase();
 
-    const ticket = await TicketInventory.findOne({ tier: normalizedTier });
-
-    if (!ticket) {
-      return res.status(400).json({ error: "Invalid ticket tier" });
+    const isBooth = type === "booth";
+    
+    // For booths, use price from frontend; for tickets, use from DB
+    let ticketPrice = price;
+    if (!ticketPrice || ticketPrice === 0) {
+      const ticket = await TicketInventory.findOne({ tier: normalizedTier });
+      if (!ticket) {
+        return res.status(400).json({ error: "Invalid ticket tier" });
+      }
+      ticketPrice = ticket.price;
     }
 
     const stripe = getStripe();
@@ -56,8 +62,6 @@ router.post("/create-checkout", async (req, res) => {
         userId = null;
       }
     }
-
-    const isBooth = type === "booth";
     
     const boothNames = {
       "booth-single": "Single Booth (10ft x 10ft)",
@@ -84,7 +88,7 @@ router.post("/create-checkout", async (req, res) => {
             product_data: {
               name: productName,
             },
-            unit_amount: ticket.price * 100,
+            unit_amount: ticketPrice * 100,
           },
           quantity: 1,
         },
