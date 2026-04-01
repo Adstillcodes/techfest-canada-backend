@@ -494,6 +494,9 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     
     const emailPromises = audience.contacts.map((contact) => {
       try {
+        console.log(`Processing contact: ${contact.email}`);
+        console.log(`Contact data:`, { firstName: contact.firstName, lastName: contact.lastName, company: contact.company });
+        
         const recipientTrackingId = generateTrackingId();
         const personalizedHtml = campaign.template
           .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
@@ -503,6 +506,8 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
           .replace(/\/company/gi, contact.company || "")
           .replace(/\/title/gi, contact.title || "")
           .replace(/\/location/gi, contact.location || "");
+
+        console.log(`Personalized HTML sample:`, personalizedHtml.substring(0, 200));
 
         const htmlWithLinksTracked = wrapLinksWithTracking(
           personalizedHtml,
@@ -562,8 +567,18 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
 
     const baseUrl = process.env.API_URL || "https://techfest-canada-backend.onrender.com";
 
+    // Apply personalization tokens for test email
+    const personalizedHtml = campaign.template
+      .replace(/\{\{name\}\}/g, email.split("@")[0])
+      .replace(/\{\{email\}\}/g, email)
+      .replace(/\/firstname/gi, "Test")
+      .replace(/\/lastname/gi, "User")
+      .replace(/\/company/gi, "Test Company")
+      .replace(/\/title/gi, "CEO")
+      .replace(/\/location/gi, "Toronto");
+
     const htmlWithLinksTracked = wrapLinksWithTracking(
-      campaign.template,
+      personalizedHtml,
       campaign._id.toString(),
       email,
       baseUrl
