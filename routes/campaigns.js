@@ -175,6 +175,27 @@ router.get("/audiences/:id/stats", authMiddleware, adminMiddleware, async (req, 
   }
 });
 
+router.get("/audiences/:id/contacts", authMiddleware, adminMiddleware, async (req, res) => {
+  console.log("Contacts route hit for ID:", req.params.id);
+  try {
+    const audience = await Audience.findById(req.params.id);
+    console.log("Audience found:", audience ? "yes" : "no");
+    if (!audience) {
+      return res.status(404).json({ error: "Audience not found" });
+    }
+
+    res.json({
+      _id: audience._id,
+      name: audience.name,
+      contactCount: audience.contactCount,
+      contacts: audience.contacts,
+    });
+  } catch (err) {
+    console.error("Audience contacts error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 router.delete("/audiences/:id", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     await Audience.findByIdAndDelete(req.params.id);
