@@ -279,7 +279,7 @@ router.put("/audiences/:id", authMiddleware, adminMiddleware, async (req, res) =
 
 router.post("/audiences/:id/contacts", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const { emails } = req.body;
+    const { emails, contacts } = req.body;
     const audience = await Audience.findById(req.params.id);
     
     if (!audience) {
@@ -287,22 +287,55 @@ router.post("/audiences/:id/contacts", authMiddleware, adminMiddleware, async (r
     }
 
     const existingEmails = new Set(audience.contacts.map((c) => c.email));
-    const newContacts = (emails || [])
-      .map((email) => email.toLowerCase().trim())
-      .filter((email) => email && email.includes("@") && !existingEmails.has(email))
-      .map((email) => ({
-        email,
-        addedAt: new Date(),
-      }));
+    let addedCount = 0;
+    let skippedCount = 0;
 
-    audience.contacts.push(...newContacts);
+    // Handle single contacts with full details
+    if (contacts && Array.isArray(contacts)) {
+      for (const contact of contacts) {
+        if (contact.email && contact.email.includes("@")) {
+          const normalizedEmail = contact.email.toLowerCase().trim();
+          if (!existingEmails.has(normalizedEmail)) {
+            audience.contacts.push({
+              email: normalizedEmail,
+              firstName: contact.firstName?.trim() || "",
+              lastName: contact.lastName?.trim() || "",
+              company: contact.company?.trim() || "",
+              title: contact.title?.trim() || "",
+              location: contact.location?.trim() || "",
+              addedAt: new Date(),
+            });
+            existingEmails.add(normalizedEmail);
+            addedCount++;
+          } else {
+            skippedCount++;
+          }
+        }
+      }
+    }
+
+    // Handle legacy email-only contacts
+    if (emails && Array.isArray(emails)) {
+      const newContacts = (emails || [])
+        .map((email) => email.toLowerCase().trim())
+        .filter((email) => email && email.includes("@") && !existingEmails.has(email))
+        .map((email) => ({
+          email,
+          addedAt: new Date(),
+        }));
+
+      audience.contacts.push(...newContacts);
+      addedCount += newContacts.length;
+      skippedCount += (emails.length || 0) - newContacts.length;
+    }
+
     await audience.save();
 
     res.json({
       success: true,
       contactCount: audience.contactCount,
-      addedCount: newContacts.length,
-      skippedCount: (emails || []).length - newContacts.length,
+      addedCount,
+      skippedCount,
     });
   } catch (err) {
     console.error("Add contacts error:", err);
