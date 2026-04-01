@@ -266,6 +266,14 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     const trackingRecords = [];
     const templateIdStr = template._id.toString();
     const campaignIdPrefix = `tpl-${templateIdStr}`;
+
+    // Delete existing tracking records to avoid duplicate key errors
+    try {
+      await EmailTracking.deleteMany({ campaignId: campaignIdPrefix });
+      console.log(`[AUTOMATION] Cleared existing tracking records for ${campaignIdPrefix}`);
+    } catch (err) {
+      console.error(`[AUTOMATION] Error clearing tracking:`, err.message);
+    }
     
     const emailPromises = audience.contacts.map((contact) => {
       try {

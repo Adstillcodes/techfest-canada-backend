@@ -570,6 +570,14 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     const trackingRecords = [];
     const baseUrl = process.env.API_URL || "https://techfest-canada-backend.onrender.com";
 
+    // Delete existing tracking records for this campaign to avoid duplicate key errors
+    try {
+      await EmailTracking.deleteMany({ campaignId: campaign._id });
+      console.log(`[LAUNCH] Cleared existing tracking records for campaign ${campaign._id}`);
+    } catch (err) {
+      console.error(`[LAUNCH] Error clearing tracking records:`, err.message);
+    }
+
     for (const contact of audience.contacts) {
       const tracking = new EmailTracking({
         campaignId: campaign._id,
@@ -579,7 +587,9 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
       trackingRecords.push(tracking.save());
     }
 
-    await Promise.all(trackingRecords);
+    await Promise.all(trackingRecords).catch(err => {
+      console.error(`[LAUNCH] Error saving tracking records:`, err.message);
+    });
 
     const campaignIdStr = campaign._id.toString();
 
