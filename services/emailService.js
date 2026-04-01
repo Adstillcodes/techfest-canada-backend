@@ -210,6 +210,11 @@ export async function sendTicketEmail({ email, name, ticketId, tier }) {
 
 export async function sendCampaignEmail({ to, subject, html, campaignId, recipientEmail, recipientTrackingId, baseUrl }) {
   try {
+    console.log(`[EMAIL SERVICE] Sending to: ${to}`);
+    console.log(`[EMAIL SERVICE] Subject: ${subject}`);
+    console.log(`[EMAIL SERVICE] HTML length: ${html ? html.length : 0}`);
+    console.log(`[EMAIL SERVICE] HTML preview: ${html ? html.substring(0, 200) : 'empty'}`);
+    
     await resend.emails.send({
       from: "TechFest Canada <campaigns@thetechfestival.com>",
       to,

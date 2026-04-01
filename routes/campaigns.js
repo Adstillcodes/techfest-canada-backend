@@ -44,33 +44,35 @@ function generateTrackingId() {
 
 // Helper: Wrap HTML with proper email structure
 function wrapEmailHtml(html) {
-  if (!html || html.trim() === "") {
+  console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 100) : 'null/undefined'}`);
+  
+  if (!html || (typeof html === 'string' && html.trim() === "")) {
+    console.log(`[WRAP] HTML is empty or whitespace only, returning null`);
     return null;
   }
   
-  // Clean up empty Tiptap elements
-  let cleanedHtml = html
-    .replace(/<p><br><\/p>/gi, "")
-    .replace(/<p><\/p>/gi, "")
-    .replace(/<span><\/span>/gi, "")
-    .trim();
-  
-  // If already has proper structure, return as-is
-  if (cleanedHtml.includes("<!DOCTYPE html>") || (cleanedHtml.includes("<html") && cleanedHtml.includes("<body"))) {
-    return cleanedHtml;
+  // Check if already has proper structure - return as-is
+  if (html.includes("<!DOCTYPE html>") || (html.includes("<html") && html.includes("<body"))) {
+    console.log(`[WRAP] HTML already has proper structure, returning as-is`);
+    return html;
   }
   
-  // Wrap with email-friendly structure
-  return `<!DOCTYPE html>
+  // Wrap with email-friendly structure - preserve ALL content including Tiptap output
+  const wrapped = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;">
-  ${cleanedHtml}
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    ${html}
+  </div>
 </body>
 </html>`;
+  
+  console.log(`[WRAP] Wrapped HTML length: ${wrapped.length}`);
+  return wrapped;
 }
 
 router.get("/audiences", authMiddleware, adminMiddleware, async (req, res) => {
@@ -490,10 +492,13 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
 
     if (name) campaign.name = name;
     if (subject) campaign.subject = subject;
-    if (template) campaign.template = template;
+    if (template !== undefined) campaign.template = template; // Save even empty strings
     if (scheduledAt) campaign.scheduledAt = scheduledAt;
 
     await campaign.save();
+    
+    console.log(`[PUT /campaigns/:id] Saved template length: ${template ? template.length : 0}`);
+    console.log(`[PUT /campaigns/:id] Campaign template now: ${campaign.template ? campaign.template.substring(0, 100) : 'empty'}`);
 
     res.json({
       _id: campaign._id,

@@ -35,33 +35,35 @@ const adminMiddleware = (req, res, next) => {
 
 // Helper: Wrap HTML with proper email structure
 function wrapEmailHtml(html) {
-  if (!html || html.trim() === "") {
+  console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 100) : 'null/undefined'}`);
+  
+  if (!html || (typeof html === 'string' && html.trim() === "")) {
+    console.log(`[WRAP] HTML is empty or whitespace only, returning null`);
     return null;
   }
   
-  // Clean up empty Tiptap elements
-  let cleanedHtml = html
-    .replace(/<p><br><\/p>/gi, "")
-    .replace(/<p><\/p>/gi, "")
-    .replace(/<span><\/span>/gi, "")
-    .trim();
-  
-  // If already has proper structure, return as-is
-  if (cleanedHtml.includes("<!DOCTYPE html>") || (cleanedHtml.includes("<html") && cleanedHtml.includes("<body"))) {
-    return cleanedHtml;
+  // Check if already has proper structure - return as-is
+  if (html.includes("<!DOCTYPE html>") || (html.includes("<html") && html.includes("<body"))) {
+    console.log(`[WRAP] HTML already has proper structure, returning as-is`);
+    return html;
   }
   
-  // Wrap with email-friendly structure
-  return `<!DOCTYPE html>
+  // Wrap with email-friendly structure - preserve ALL content including Tiptap output
+  const wrapped = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="margin:0;padding:0;font-family:Arial,sans-serif;">
-  ${cleanedHtml}
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    ${html}
+  </div>
 </body>
 </html>`;
+  
+  console.log(`[WRAP] Wrapped HTML length: ${wrapped.length}`);
+  return wrapped;
 }
 
 router.post("/seed", authMiddleware, adminMiddleware, async (req, res) => {
@@ -221,8 +223,14 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     const finalSubject = subject || template.subject;
     let html = htmlBody || template.htmlBody;
     
+    console.log(`[SEND] htmlBody param: ${htmlBody ? 'provided' : 'not provided'}`);
+    console.log(`[SEND] template.htmlBody: ${template.htmlBody ? 'exists (' + template.htmlBody.length + ' chars)' : 'null/undefined'}`);
+    console.log(`[SEND] Using html: ${html ? 'yes (' + html.length + ' chars)' : 'no - will generate'}`);
+    
     if (!html) {
+      console.log(`[SEND] HTML is empty, generating default template`);
       html = generateEmailHtml(template);
+      console.log(`[SEND] Generated HTML length: ${html.length}`);
     }
 
     // Validate template before sending
@@ -230,7 +238,8 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     if (!wrappedHtml) {
       return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending." });
     }
-    console.log(`[AUTOMATION SEND] Template "${template.subject}" validated, length: ${wrappedHtml.length}`);
+    console.log(`[SEND] Final wrapped HTML length: ${wrappedHtml.length}`);
+    console.log(`[SEND] Final wrapped HTML sample:\n${wrappedHtml.substring(0, 500)}`);
 
     const trackingRecords = [];
     const templateIdStr = template._id.toString();
@@ -395,9 +404,17 @@ router.get("/upcoming", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 function generateEmailHtml(template) {
-  const ctaFullLink = template.ctaLink.startsWith("http") 
+  console.log(`[GENERATE] Creating fallback email for template: ${template.subject}`);
+  
+  const ctaFullLink = (template.ctaLink && template.ctaLink.startsWith("http")) 
     ? template.ctaLink 
-    : `https://${template.ctaLink}`;
+    : `https://${template.ctaLink || 'www.thetechfestival.com'}`;
+
+  const bodyContent = template.bodySummary || "Thank you for your interest in The Tech Festival Canada 2026. We look forward to seeing you in Toronto!";
+  const ctaText = template.ctaText || "Learn More";
+  const phase = template.phase || "Phase 1";
+  const audience = template.audience || "General";
+  const purpose = template.purpose || "Event Updates";
 
   return `
 <!DOCTYPE html>
@@ -416,21 +433,21 @@ function generateEmailHtml(template) {
       
       <div style="padding:40px 30px;">
         <p style="color:#333;font-size:16px;line-height:1.6;">
-          ${template.bodySummary}
+          ${bodyContent}
         </p>
         
         <div style="text-align:center;margin:30px 0;">
           <a href="${ctaFullLink}" style="display:inline-block;background:linear-gradient(135deg,#7a3fd1,#f5a623);color:white;padding:16px 32px;border-radius:50px;text-decoration:none;font-weight:bold;font-size:16px;">
-            ${template.ctaText} →
+            ${ctaText} →
           </a>
         </div>
         
         <div style="background:#f9f5ff;border-radius:8px;padding:20px;margin-top:30px;">
           <p style="margin:0;color:#666;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Campaign Info</p>
           <p style="margin:5px 0 0;color:#333;font-size:14px;">
-            <strong>Phase:</strong> ${template.phase} | 
-            <strong>Audience:</strong> ${template.audience} | 
-            <strong>Purpose:</strong> ${template.purpose}
+            <strong>Phase:</strong> ${phase} | 
+            <strong>Audience:</strong> ${audience} | 
+            <strong>Purpose:</strong> ${purpose}
           </p>
         </div>
       </div>
