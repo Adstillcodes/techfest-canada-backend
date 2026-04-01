@@ -31,7 +31,7 @@ async function getUserFromReq(req) {
 router.post("/create-checkout", async (req, res) => {
   try {
 
-    const { tier } = req.body;
+    const { tier, type = "ticket" } = req.body;
     const normalizedTier = tier.toLowerCase();
 
     const ticket = await TicketInventory.findOne({ tier: normalizedTier });
@@ -57,6 +57,19 @@ router.post("/create-checkout", async (req, res) => {
       }
     }
 
+    const isBooth = type === "booth";
+    
+    const boothNames = {
+      "booth-single": "Single Booth (10ft x 10ft)",
+      "booth-double": "Double Booth (20ft x 10ft)",
+      "booth-triple": "Triple Booth (30ft x 10ft)",
+      "booth-quadruple": "Quadruple Booth (40ft x 10ft)"
+    };
+
+    const productName = isBooth 
+      ? (boothNames[normalizedTier] || `TechFest ${normalizedTier.replace('booth-', '').replace('-', ' ').toUpperCase()} Booth`)
+      : `TechFest ${tier.toUpperCase()} Pass`;
+
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -69,7 +82,7 @@ router.post("/create-checkout", async (req, res) => {
           price_data: {
             currency: "cad",
             product_data: {
-              name: `TechFest ${tier.toUpperCase()} Pass`,
+              name: productName,
             },
             unit_amount: ticket.price * 100,
           },
@@ -77,12 +90,17 @@ router.post("/create-checkout", async (req, res) => {
         },
       ],
 
-      success_url: `${process.env.FRONTEND_URL}/tickets?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL}/tickets`,
+      success_url: isBooth 
+        ? `${process.env.FRONTEND_URL}/exhibit?success=true`
+        : `${process.env.FRONTEND_URL}/tickets?success=true`,
+      cancel_url: isBooth 
+        ? `${process.env.FRONTEND_URL}/exhibit`
+        : `${process.env.FRONTEND_URL}/tickets`,
 
       metadata: {
         tier: normalizedTier,
-        userId: userId || "guest"
+        userId: userId || "guest",
+        type: type
       }
     });
 

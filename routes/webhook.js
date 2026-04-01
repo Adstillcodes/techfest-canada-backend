@@ -40,9 +40,12 @@ router.post("/stripe", async (req, res) => {
 
       const tier = session.metadata.tier;
       const userId = session.metadata.userId;
+      const purchaseType = session.metadata.type || "ticket";
 
       const email = session.customer_details?.email;
       const name = session.customer_details?.name || "Guest";
+
+      const isBooth = purchaseType === "booth";
 
       if (!tier) {
         console.error("❌ Missing tier metadata");
@@ -74,51 +77,74 @@ router.post("/stripe", async (req, res) => {
 
       }
 
-      // ================= CREATE TICKET =================
+      // ================= CREATE TICKET (only for tickets, not booths) =================
 
-      const ticketId = crypto.randomBytes(6).toString("hex");
+      if (!isBooth) {
+        const ticketId = crypto.randomBytes(6).toString("hex");
 
-      // If user purchased while logged in → attach ticket to account
-      if (userId && userId !== "guest") {
+        // If user purchased while logged in → attach ticket to account
+        if (userId && userId !== "guest") {
 
-        const user = await User.findById(userId);
+          const user = await User.findById(userId);
 
-        if (user) {
+          if (user) {
 
-          user.tickets.push({
-            ticketId,
-            type: tier,
-            purchaseDate: new Date()
-          });
+            user.tickets.push({
+              ticketId,
+              type: tier,
+              purchaseDate: new Date()
+            });
 
-          await user.save();
+            await user.save();
 
-          console.log("🎟 Ticket attached to user:", userId);
+            console.log("🎟 Ticket attached to user:", userId);
+
+          }
 
         }
 
-      }
+        // ================= SEND TICKET EMAIL =================
 
-      // ================= SEND TICKET EMAIL =================
+        if (email) {
 
-      if (email) {
+          await sendTicketEmail({
+            email,
+            name,
+            ticketId,
+            tier
+          });
 
-        await sendTicketEmail({
-          email,
-          name,
-          ticketId,
-          tier
-        });
+          console.log("📧 Ticket email sent to:", email);
 
-        console.log("📧 Ticket email sent to:", email);
+        } else {
 
+          console.error("❌ Email missing from Stripe session");
+
+        }
+
+        console.log("✅ Ticket created:", ticketId);
       } else {
+        // ================= SEND BOOTH PURCHASE EMAIL =================
+        
+        if (email) {
 
-        console.error("❌ Email missing from Stripe session");
+          await sendTicketEmail({
+            email,
+            name,
+            ticketId: "BOOTH-" + tier.toUpperCase(),
+            tier: tier
+          });
 
+          console.log("📧 Booth confirmation email sent to:", email);
+
+        } else {
+
+          console.error("❌ Email missing from Stripe session");
+
+        }
+
+        console.log("✅ Booth purchase confirmed:", tier);
       }
-
-      console.log("✅ Ticket created:", ticketId);
 
     } catch (err) {
 

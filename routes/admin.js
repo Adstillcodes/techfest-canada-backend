@@ -189,7 +189,27 @@ router.get("/inventory/public", async (req, res) => {
 
     const tiers = ["discover", "connect", "influence", "power"];
 
+    const boothTiers = ["booth-single", "booth-double", "booth-triple", "booth-quadruple"];
+
     for (const tier of tiers) {
+
+      const exists = inventory.find((i) => i.tier === tier);
+
+      if (!exists) {
+
+        const newTier = await TicketInventory.create({
+          tier,
+          total: 0,
+          sold: 0,
+        });
+
+        inventory.push(newTier);
+
+      }
+
+    }
+
+    for (const tier of boothTiers) {
 
       const exists = inventory.find((i) => i.tier === tier);
 
@@ -233,7 +253,27 @@ router.get(
 
       const tiers = ["early", "festival", "vip"];
 
+      const boothTiers = ["booth-single", "booth-double", "booth-triple", "booth-quadruple"];
+
       for (const tier of tiers) {
+
+        const exists = inventory.find((i) => i.tier === tier);
+
+        if (!exists) {
+
+          const newTier = await TicketInventory.create({
+            tier,
+            total: 0,
+            sold: 0,
+          });
+
+          inventory.push(newTier);
+
+        }
+
+      }
+
+      for (const tier of boothTiers) {
 
         const exists = inventory.find((i) => i.tier === tier);
 
