@@ -288,13 +288,8 @@ function sanitizeHtmlFinal(html) {
   
   let sanitized = html;
   
-  // ULTIMATE SAFETY: Remove ALL title tags completely from email HTML
-  // This eliminates any chance of broken title tags like <Developer> or <>
-  sanitized = sanitized.replace(/<title>[\s\S]*?<\/title>/gi, '');
-  sanitized = sanitized.replace(/<title>[\s\S]*$/gi, '');
-  
-  // Fix any stray </> that are orphaned
-  sanitized = sanitized.replace(/<\/>\s*/g, '');
+  // Remove javascript: URLs as safety measure (should already be removed, but double-check)
+  sanitized = sanitized.replace(/javascript:/gi, '');
   
   return sanitized;
 }

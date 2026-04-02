@@ -42,29 +42,12 @@ function generateTrackingId() {
   return crypto.randomBytes(16).toString("hex");
 }
 
-// Helper: Sanitize HTML to fix common issues and remove dangerous content
+// Helper: Sanitize HTML to remove dangerous content only
+// IMPORTANT: Be conservative - only remove malicious content, preserve valid HTML structure
 function sanitizeHtml(html) {
   if (!html) return html;
   
   let sanitized = html;
-  
-  // Fix broken title tags: <title>text<tag> or <title>text<> -> <title>text</title>
-  // Handles: <title>Title<Developer>, <title>Title<>, <title>Title<Other>
-  sanitized = sanitized.replace(/<title>([^<]*)<([^>]*)?>/gi, '<title>$1</title>');
-  
-  // Fix empty/corrupted title closing: <title>text</title><> -> <title>text</title>
-  sanitized = sanitized.replace(/<\/title>\s*<>/gi, '</title>');
-  
-  // Fix any remaining orphaned < characters after title
-  sanitized = sanitized.replace(/<title>[^<]*<(?!\/title>)/gi, (match) => {
-    return match.replace(/<$/, '</title>');
-  });
-  
-  // If title tag is missing closing, add it (as fallback)
-  sanitized = sanitized.replace(/<title>([^<]*?)(?=<)(?!<\/title>)/gi, '<title>$1</title>');
-  
-  // Remove any stray </> or </tags that are orphaned
-  sanitized = sanitized.replace(/<\/>\s*/g, '');
   
   // Remove script tags and their content entirely
   sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -79,12 +62,7 @@ function sanitizeHtml(html) {
   // Remove javascript: URLs
   sanitized = sanitized.replace(/javascript:/gi, '');
   
-  // Fix common encoding issues
-  sanitized = sanitized.replace(/&lt;/g, '<');
-  sanitized = sanitized.replace(/&gt;/g, '>');
-  
   console.log(`[SANITIZE] Input length: ${html.length}, Output length: ${sanitized.length}`);
-  console.log(`[SANITIZE] Title fixed: ${sanitized.includes('<title>') && sanitized.includes('</title>')}`);
   
   return sanitized;
 }
@@ -97,12 +75,6 @@ function wrapEmailHtml(html) {
     console.log(`[WRAP] HTML is empty or whitespace only, returning null`);
     return null;
   }
-  
-  // ULTIMATE SAFETY: Remove ALL title tags from input HTML to prevent any corruption
-  // This is the final safety net against any broken title tags
-  html = html.replace(/<title>[\s\S]*?<\/title>/gi, '');
-  html = html.replace(/<title>[\s\S]*$/gi, '');
-  console.log(`[WRAP] After title tag removal`);
   
   // Check if already has COMPLETE HTML structure - DOCTYPE + html + head + body
   const hasDoctype = html.includes("<!DOCTYPE html>");
