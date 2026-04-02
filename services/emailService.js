@@ -280,25 +280,10 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
 /* =========================================================
    TRACKED LINK WRAPPER
    Wraps URLs in HTML with click tracking
-   Also performs final HTML sanitization as safety net
 ========================================================= */
-
-function sanitizeHtmlFinal(html) {
-  if (!html) return html;
-  
-  let sanitized = html;
-  
-  // Remove javascript: URLs as safety measure (should already be removed, but double-check)
-  sanitized = sanitized.replace(/javascript:/gi, '');
-  
-  return sanitized;
-}
 
 export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl) {
   if (!html) return html;
-  
-  // Final sanitization as safety net
-  html = sanitizeHtmlFinal(html);
   
   try {
     const trackedHtml = html.replace(

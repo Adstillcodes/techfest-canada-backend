@@ -33,43 +33,6 @@ const adminMiddleware = (req, res, next) => {
   next();
 };
 
-// Helper: Sanitize HTML to remove dangerous content only
-// IMPORTANT: Be conservative - only remove malicious content, preserve valid HTML structure
-function sanitizeHtml(html) {
-  if (!html) return html;
-  
-  let sanitized = html;
-  
-  // Fix broken title tags that are NOT properly closed
-  // Only matches: <title>text<tag> or <title>text<> (NOT <title>text</title>)
-  // Uses negative lookahead (?!<\/title>) to avoid matching properly closed title tags
-  sanitized = sanitized.replace(/<title>([^<]*)<(?!(\/title|>| ))/gi, (match, content) => {
-    return `<title>${content}</title>`;
-  });
-  
-  // Fix title tags that are missing closing tag entirely
-  sanitized = sanitized.replace(/<title>([^<]*)$/gi, (match, content) => {
-    return `<title>${content}</title>`;
-  });
-  
-  // Remove script tags and their content entirely
-  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  
-  // Remove iframe tags
-  sanitized = sanitized.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-  
-  // Remove on* event handlers (e.g., onclick, onload, onerror)
-  sanitized = sanitized.replace(/\s+on\w+="[^"]*"/gi, '');
-  sanitized = sanitized.replace(/\s+on\w+='[^']*'/gi, '');
-  
-  // Remove javascript: URLs
-  sanitized = sanitized.replace(/javascript:/gi, '');
-  
-  console.log(`[SANITIZE] Input length: ${html.length}, Output length: ${sanitized.length}`);
-  
-  return sanitized;
-}
-
 // Helper: Wrap HTML with proper email structure (Gmail/Outlook compatible)
 function wrapEmailHtml(html) {
   console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 80) : 'null/undefined'}`);
@@ -256,8 +219,7 @@ router.put("/templates/:id", authMiddleware, adminMiddleware, async (req, res) =
     if (status) template.status = status;
     if (sendDate) template.sendDate = new Date(sendDate);
     if (htmlBody !== undefined) {
-      // Sanitize HTML before saving
-      template.htmlBody = sanitizeHtml(htmlBody);
+      template.htmlBody = htmlBody;
     }
     if (textBody !== undefined) template.textBody = textBody;
 
@@ -312,14 +274,12 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     }
 
     // Validate template before sending
-    // FIRST: Sanitize the HTML to fix any broken tags before wrapping
-    const sanitizedHtml = sanitizeHtml(html);
-    const wrappedHtml = wrapEmailHtml(sanitizedHtml);
+    const wrappedHtml = wrapEmailHtml(html);
     if (!wrappedHtml) {
       return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending." });
     }
-    console.log(`[SEND] After sanitization + wrap, HTML length: ${wrappedHtml.length}`);
-    console.log(`[SEND] Sanitized HTML preview:\n${wrappedHtml.substring(0, 500)}`);
+    console.log(`[SEND] After wrap, HTML length: ${wrappedHtml.length}`);
+    console.log(`[SEND] HTML preview:\n${wrappedHtml.substring(0, 500)}`);
 
     const trackingRecords = [];
     const templateIdStr = template._id.toString();
@@ -566,51 +526,16 @@ function generateEmailHtml(template) {
 
 router.post("/cleanup-templates", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    console.log("[CLEANUP] Starting automation template cleanup...");
-    
     const templates = await CampaignTemplate.find({ htmlBody: { $exists: true, $ne: null } });
-    let fixedCount = 0;
-    let alreadyCleanCount = 0;
-    const results = [];
-
-    for (const template of templates) {
-      if (!template.htmlBody) continue;
-
-      const originalLength = template.htmlBody.length;
-      const sanitized = sanitizeHtml(template.htmlBody);
-      const sanitizedLength = sanitized.length;
-
-      if (originalLength !== sanitizedLength || 
-          template.htmlBody.includes("<title>") && !template.htmlBody.match(/<title>[^<]*<\/title>/)) {
-        template.htmlBody = sanitized;
-        await template.save();
-        fixedCount++;
-        results.push({
-          id: template._id,
-          templateId: template.templateId,
-          subject: template.subject,
-          originalLength,
-          sanitizedLength,
-          fixed: true
-        });
-        console.log(`[CLEANUP] Fixed template: ${template.templateId} (${template._id})`);
-      } else {
-        alreadyCleanCount++;
-      }
-    }
-
-    console.log(`[CLEANUP] Complete: ${fixedCount} fixed, ${alreadyCleanCount} already clean`);
     
     res.json({
       success: true,
-      message: `Cleanup complete: ${fixedCount} templates fixed, ${alreadyCleanCount} were already clean`,
-      fixedCount,
-      alreadyCleanCount,
-      results
+      message: "HTML sanitization has been removed. All templates are used as-is without modification.",
+      totalTemplates: templates.length
     });
   } catch (err) {
     console.error("[CLEANUP] Error:", err);
-    res.status(500).json({ error: "Failed to cleanup templates", details: err.message });
+    res.status(500).json({ error: "Failed to check templates", details: err.message });
   }
 });
 

@@ -42,43 +42,6 @@ function generateTrackingId() {
   return crypto.randomBytes(16).toString("hex");
 }
 
-// Helper: Sanitize HTML to remove dangerous content only
-// IMPORTANT: Be conservative - only remove malicious content, preserve valid HTML structure
-function sanitizeHtml(html) {
-  if (!html) return html;
-  
-  let sanitized = html;
-  
-  // Fix broken title tags that are NOT properly closed
-  // Only matches: <title>text<tag> or <title>text<> (NOT <title>text</title>)
-  // Uses negative lookahead (?!<\/title>) to avoid matching properly closed title tags
-  sanitized = sanitized.replace(/<title>([^<]*)<(?!(\/title|>| ))/gi, (match, content) => {
-    return `<title>${content}</title>`;
-  });
-  
-  // Fix title tags that are missing closing tag entirely
-  sanitized = sanitized.replace(/<title>([^<]*)$/gi, (match, content) => {
-    return `<title>${content}</title>`;
-  });
-  
-  // Remove script tags and their content entirely
-  sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  
-  // Remove iframe tags
-  sanitized = sanitized.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '');
-  
-  // Remove on* event handlers (e.g., onclick, onload, onerror)
-  sanitized = sanitized.replace(/\s+on\w+="[^"]*"/gi, '');
-  sanitized = sanitized.replace(/\s+on\w+='[^']*'/gi, '');
-  
-  // Remove javascript: URLs
-  sanitized = sanitized.replace(/javascript:/gi, '');
-  
-  console.log(`[SANITIZE] Input length: ${html.length}, Output length: ${sanitized.length}`);
-  
-  return sanitized;
-}
-
 // Helper: Wrap HTML with proper email structure (Gmail/Outlook compatible)
 function wrapEmailHtml(html) {
   console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 80) : 'null/undefined'}`);
@@ -600,10 +563,8 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
     if (name) campaign.name = name;
     if (subject) campaign.subject = subject;
     if (template !== undefined) {
-      // Sanitize HTML before saving to fix common issues
-      const sanitizedTemplate = sanitizeHtml(template);
-      campaign.template = sanitizedTemplate;
-      console.log(`[PUT /campaigns/:id] Sanitized template length: ${sanitizedTemplate.length}`);
+      campaign.template = template;
+      console.log(`[PUT /campaigns/:id] Saved template length: ${template ? template.length : 0}`);
     }
     if (scheduledAt) campaign.scheduledAt = scheduledAt;
 
@@ -691,14 +652,12 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     const campaignIdStr = campaign._id.toString();
 
     // Validate template before sending
-    // FIRST: Sanitize the HTML to fix any broken tags before wrapping
-    const sanitizedTemplate = sanitizeHtml(campaign.template);
-    const wrappedHtml = wrapEmailHtml(sanitizedTemplate);
+    const wrappedHtml = wrapEmailHtml(campaign.template);
     if (!wrappedHtml) {
       return res.status(400).json({ error: "Email template is empty. Please add content and save the template before launching." });
     }
-    console.log(`[LAUNCH] After sanitization + wrap, HTML length: ${wrappedHtml.length}`);
-    console.log(`[LAUNCH] Sanitized HTML preview:\n${wrappedHtml.substring(0, 500)}`);
+    console.log(`[LAUNCH] After wrap, HTML length: ${wrappedHtml.length}`);
+    console.log(`[LAUNCH] HTML preview:\n${wrappedHtml.substring(0, 500)}`);
     
     const emailPromises = audience.contacts.map((contact) => {
       try {
@@ -790,13 +749,11 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
     const baseUrl = process.env.API_URL || "https://techfest-canada-backend.onrender.com";
 
     // Validate and wrap template like production
-    // FIRST: Sanitize the HTML to fix any broken tags before wrapping
-    const sanitizedTemplate = sanitizeHtml(campaign.template);
-    const wrappedHtml = wrapEmailHtml(sanitizedTemplate);
+    const wrappedHtml = wrapEmailHtml(campaign.template);
     if (!wrappedHtml) {
       return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending test." });
     }
-    console.log(`[TEST EMAIL] After sanitization + wrap, HTML length: ${wrappedHtml.length}`);
+    console.log(`[TEST EMAIL] After wrap, HTML length: ${wrappedHtml.length}`);
 
     // Apply personalization tokens for test email
     const personalizedHtml = wrappedHtml
@@ -912,50 +869,16 @@ router.get("/:id/tracking", authMiddleware, adminMiddleware, async (req, res) =>
 
 router.post("/cleanup-templates", authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    console.log("[CLEANUP] Starting template cleanup...");
-    
     const campaigns = await Campaign.find({ template: { $exists: true, $ne: null } });
-    let fixedCount = 0;
-    let alreadyCleanCount = 0;
-    const results = [];
-
-    for (const campaign of campaigns) {
-      if (!campaign.template) continue;
-
-      const originalLength = campaign.template.length;
-      const sanitized = sanitizeHtml(campaign.template);
-      const sanitizedLength = sanitized.length;
-
-      if (originalLength !== sanitizedLength || 
-          campaign.template.includes("<title>") && !campaign.template.match(/<title>[^<]*<\/title>/)) {
-        campaign.template = sanitized;
-        await campaign.save();
-        fixedCount++;
-        results.push({
-          id: campaign._id,
-          name: campaign.name,
-          originalLength,
-          sanitizedLength,
-          fixed: true
-        });
-        console.log(`[CLEANUP] Fixed campaign: ${campaign.name} (${campaign._id})`);
-      } else {
-        alreadyCleanCount++;
-      }
-    }
-
-    console.log(`[CLEANUP] Complete: ${fixedCount} fixed, ${alreadyCleanCount} already clean`);
     
     res.json({
       success: true,
-      message: `Cleanup complete: ${fixedCount} templates fixed, ${alreadyCleanCount} were already clean`,
-      fixedCount,
-      alreadyCleanCount,
-      results
+      message: "HTML sanitization has been removed. All templates are used as-is without modification.",
+      totalCampaigns: campaigns.length
     });
   } catch (err) {
     console.error("[CLEANUP] Error:", err);
-    res.status(500).json({ error: "Failed to cleanup templates", details: err.message });
+    res.status(500).json({ error: "Failed to check templates", details: err.message });
   }
 });
 
