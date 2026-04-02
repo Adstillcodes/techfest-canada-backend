@@ -234,18 +234,26 @@ router.put("/templates/:id", authMiddleware, adminMiddleware, async (req, res) =
 router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { subject, htmlBody, textBody, audienceId } = req.body;
+    console.log(`[SEND] Received request - audienceId: "${audienceId}", template.audience: "${req.body.audience || 'not provided'}"`);
+    
     const template = await CampaignTemplate.findById(req.params.id);
     if (!template) {
       return res.status(404).json({ error: "Template not found" });
     }
 
     let audience;
-    if (audienceId) {
+    if (audienceId && audienceId.trim() !== "") {
+      console.log(`[SEND] Looking up audience by ID: ${audienceId}`);
       audience = await Audience.findById(audienceId);
       if (!audience) {
-        return res.status(400).json({ error: "Audience not found" });
+        console.log(`[SEND] Audience not found by ID, checking all audiences`);
+        const allAudiences = await Audience.find({});
+        console.log(`[SEND] Available audiences:`, allAudiences.map(a => ({ id: a._id, name: a.name, contacts: a.contacts?.length })));
+        return res.status(400).json({ error: "Audience not found", receivedId: audienceId });
       }
+      console.log(`[SEND] Found audience by ID: ${audience.name}, contacts: ${audience.contacts?.length || 0}`);
     } else {
+      console.log(`[SEND] No audienceId provided, using fallback logic`);
       const audienceMap = {
         "Sponsors": "Sponsor Leads",
         "Exhibitors": "Exhibitor Leads",
@@ -253,7 +261,15 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
         "Visitors": "Visitor Prospects",
       };
       const audienceName = audienceMap[template.audience];
+      console.log(`[SEND] Looking for audience by name: "${audienceName}"`);
       audience = await Audience.findOne({ name: audienceName });
+      if (audience) {
+        console.log(`[SEND] Found audience by name: ${audience.name}, contacts: ${audience.contacts?.length || 0}`);
+      } else {
+        console.log(`[SEND] Audience not found by name, checking all audiences`);
+        const allAudiences = await Audience.find({});
+        console.log(`[SEND] Available audiences:`, allAudiences.map(a => ({ id: a._id, name: a.name, contacts: a.contacts?.length })));
+      }
     }
 
     if (!audience || audience.contacts.length === 0) {
