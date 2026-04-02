@@ -40,6 +40,18 @@ function sanitizeHtml(html) {
   
   let sanitized = html;
   
+  // Fix broken title tags that are NOT properly closed
+  // Only matches: <title>text<tag> or <title>text<> (NOT <title>text</title>)
+  // Uses negative lookahead (?!<\/title>) to avoid matching properly closed title tags
+  sanitized = sanitized.replace(/<title>([^<]*)<(?!(\/title|>| ))/gi, (match, content) => {
+    return `<title>${content}</title>`;
+  });
+  
+  // Fix title tags that are missing closing tag entirely
+  sanitized = sanitized.replace(/<title>([^<]*)$/gi, (match, content) => {
+    return `<title>${content}</title>`;
+  });
+  
   // Remove script tags and their content entirely
   sanitized = sanitized.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
   
@@ -551,5 +563,55 @@ function generateEmailHtml(template) {
 </html>
   `;
 }
+
+router.post("/cleanup-templates", authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    console.log("[CLEANUP] Starting automation template cleanup...");
+    
+    const templates = await CampaignTemplate.find({ htmlBody: { $exists: true, $ne: null } });
+    let fixedCount = 0;
+    let alreadyCleanCount = 0;
+    const results = [];
+
+    for (const template of templates) {
+      if (!template.htmlBody) continue;
+
+      const originalLength = template.htmlBody.length;
+      const sanitized = sanitizeHtml(template.htmlBody);
+      const sanitizedLength = sanitized.length;
+
+      if (originalLength !== sanitizedLength || 
+          template.htmlBody.includes("<title>") && !template.htmlBody.match(/<title>[^<]*<\/title>/)) {
+        template.htmlBody = sanitized;
+        await template.save();
+        fixedCount++;
+        results.push({
+          id: template._id,
+          templateId: template.templateId,
+          subject: template.subject,
+          originalLength,
+          sanitizedLength,
+          fixed: true
+        });
+        console.log(`[CLEANUP] Fixed template: ${template.templateId} (${template._id})`);
+      } else {
+        alreadyCleanCount++;
+      }
+    }
+
+    console.log(`[CLEANUP] Complete: ${fixedCount} fixed, ${alreadyCleanCount} already clean`);
+    
+    res.json({
+      success: true,
+      message: `Cleanup complete: ${fixedCount} templates fixed, ${alreadyCleanCount} were already clean`,
+      fixedCount,
+      alreadyCleanCount,
+      results
+    });
+  } catch (err) {
+    console.error("[CLEANUP] Error:", err);
+    res.status(500).json({ error: "Failed to cleanup templates", details: err.message });
+  }
+});
 
 export default router;
