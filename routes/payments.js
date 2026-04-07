@@ -3,37 +3,28 @@ import jwt from "jsonwebtoken";
 import Stripe from "stripe";
 import User from "../models/User.js";
 import TicketInventory from "../models/TicketInventory.js";
-
 const router = express.Router();
-
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new Error("STRIPE_SECRET_KEY missing in env");
   }
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 }
-
 // middleware to get user from token
 async function getUserFromReq(req) {
   const authHeader = req.headers.authorization;
   if (!authHeader) throw new Error("No token");
-
   const token = authHeader.split(" ")[1];
   const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
   const user = await User.findById(decoded.id);
   if (!user) throw new Error("User not found");
-
   return user;
 }
-
 // ================= CREATE CHECKOUT =================
 router.post("/create-checkout", async (req, res) => {
   try {
-
     const { tier, type = "ticket", price } = req.body;
     const normalizedTier = tier.toLowerCase();
-
     const isBooth = type === "booth";
     
     // For booths, use price from frontend; for tickets, use from DB
@@ -45,14 +36,10 @@ router.post("/create-checkout", async (req, res) => {
       }
       ticketPrice = ticket.price;
     }
-
     const stripe = getStripe();
-
     // check if user is logged in
     let userId = null;
-
     const authHeader = req.headers.authorization;
-
     if (authHeader) {
       try {
         const token = authHeader.split(" ")[1];
@@ -69,18 +56,15 @@ router.post("/create-checkout", async (req, res) => {
       "booth-triple": "Triple Booth (30ft x 10ft)",
       "booth-quadruple": "Quadruple Booth (40ft x 10ft)"
     };
-
     const productName = isBooth 
       ? (boothNames[normalizedTier] || `TechFest ${normalizedTier.replace('booth-', '').replace('-', ' ').toUpperCase()} Booth`)
       : `TechFest ${tier.toUpperCase()} Pass`;
-
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
-
-      // Stripe collects email for guests
       customer_creation: "always",
-
+      automatic_tax: { enabled: true }, // 👈 Stripe Tax - auto calculates HST/GST based on customer address
+      billing_address_collection: "required", // needed so Stripe knows where to tax
       line_items: [
         {
           price_data: {
@@ -93,27 +77,22 @@ router.post("/create-checkout", async (req, res) => {
           quantity: 1,
         },
       ],
-
       success_url: isBooth 
         ? `${process.env.FRONTEND_URL}/exhibit?success=true`
         : `${process.env.FRONTEND_URL}/tickets?success=true`,
       cancel_url: isBooth 
         ? `${process.env.FRONTEND_URL}/exhibit`
         : `${process.env.FRONTEND_URL}/tickets`,
-
       metadata: {
         tier: normalizedTier,
         userId: userId || "guest",
         type: type
       }
     });
-
     res.json({ url: session.url });
-
   } catch (err) {
     console.error("CHECKOUT ERROR:", err);
     res.status(500).json({ error: "Checkout failed" });
   }
 });
-
 export default router;
