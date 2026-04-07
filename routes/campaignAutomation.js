@@ -375,7 +375,15 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
     template.sentAt = new Date();
     await template.save();
 
-    const campaignName = campaignIdPrefix;
+    const audienceMap = {
+      "Sponsors": "Sponsor Leads",
+      "Exhibitors": "Exhibitor Leads",
+      "Delegates": "Delegate Prospects",
+      "Visitors": "Visitor Prospects",
+    };
+    const audienceName = audienceMap[template.audience] || template.audience;
+    const campaignName = `${template.purpose || 'Campaign'} - ${template.phase || ''} (${template.audience || 'General'})`;
+    
     let campaign = await Campaign.findOne({ name: campaignName });
     if (!campaign) {
       const audienceDoc = await Audience.findOne({ name: audienceName });
@@ -403,6 +411,7 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       campaign.stats.sent = sentCount;
       campaign.status = "sent";
       campaign.sentAt = new Date();
+      campaign.template = html;
     }
     await campaign.save();
 
