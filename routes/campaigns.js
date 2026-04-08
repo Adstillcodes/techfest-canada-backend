@@ -59,7 +59,7 @@ function wrapEmailHtml(html, options = {}) {
   if (campaignId && recipientEmail && baseUrl) {
     footerHtml = generateCampaignFooter(baseUrl, campaignId, recipientEmail);
   }
-   
+  
   // Check if already has COMPLETE HTML structure - DOCTYPE + html + head + body
   const hasDoctype = html.includes("<!DOCTYPE html>");
   const hasHtmlOpen = html.includes("<html");
@@ -67,23 +67,22 @@ function wrapEmailHtml(html, options = {}) {
   const hasBodyOpen = html.includes("<body");
   const hasBodyClose = html.includes("</body>");
   
-  // If has DOCTYPE AND closing html/body tags, it's complete - return as-is
+  let resultHtml = html;
+  
+  // If has DOCTYPE AND closing html/body tags, it's complete - use as-is
   if (hasDoctype && hasHtmlClose && hasBodyClose) {
-    console.log(`[WRAP] HTML already has COMPLETE structure (DOCTYPE + html + body), returning as-is`);
-    return html;
+    console.log(`[WRAP] HTML already has COMPLETE structure (DOCTYPE + html + body)`);
+    resultHtml = html;
   }
-  
-  // If has html/body open AND closing tags, it's complete enough - return as-is
-  if (hasHtmlOpen && hasHtmlClose && hasBodyOpen && hasBodyClose) {
-    console.log(`[WRAP] HTML already has complete structure (html + body tags), returning as-is`);
-    return html;
+  // If has html/body open AND closing tags, it's complete enough - use as-is
+  else if (hasHtmlOpen && hasHtmlClose && hasBodyOpen && hasBodyClose) {
+    console.log(`[WRAP] HTML already has complete structure (html + body tags)`);
+    resultHtml = html;
   }
-  
   // If it's just a simple table without any HTML structure, wrap it
-  console.log(`[WRAP] HTML needs wrapping - wrapping with email-friendly structure`);
-  
-  // Wrap with email-friendly structure - Gmail/Outlook compatible (no title tag)
-  const wrapped = `<!DOCTYPE html>
+  else {
+    console.log(`[WRAP] HTML needs wrapping - wrapping with email-friendly structure`);
+    resultHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -117,9 +116,22 @@ function wrapEmailHtml(html, options = {}) {
   </table>
 </body>
 </html>`;
+    console.log(`[WRAP] Wrapped HTML length: ${resultHtml.length}`);
+  }
   
-  console.log(`[WRAP] Wrapped HTML length: ${wrapped.length}`);
-  return wrapped;
+  // Add footer if we have it - insert before </body>
+  if (footerHtml) {
+    if (resultHtml.includes('</body>')) {
+      resultHtml = resultHtml.replace('</body>', footerHtml + '</body>');
+      console.log(`[WRAP] Added footer to HTML`);
+    } else {
+      // No </body> tag found, append before </html>
+      resultHtml = resultHtml.replace('</html>', footerHtml + '</html>');
+      console.log(`[WRAP] Added footer before </html>`);
+    }
+  }
+  
+  return resultHtml;
 }
 
 router.get("/audiences", authMiddleware, adminMiddleware, async (req, res) => {
