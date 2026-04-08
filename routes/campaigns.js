@@ -216,11 +216,11 @@ router.post("/audiences/import", authMiddleware, adminMiddleware, upload.single(
             return "";
           };
 
-          const email = getValue(["email", "Email", "EMAIL", "EmailAddress", "Email Address"]);
-          const nameField = getValue(["name", "Name", "NAME"]);
+          const email = getValue(["email", "Email", "EMAIL", "EmailAddress", "Email Address", "Person Email"]);
+          const nameField = getValue(["name", "Name", "NAME", "Person FullName"]);
           const firstName = getValue(["firstname", "firstName", "First Name", "FirstName", "Person FirstName", "Person_FirstName"]);
           const lastName = getValue(["lastname", "lastName", "Last Name", "LastName", "Person LastName", "Person_LastName"]);
-          const company = getValue(["company", "Company", "companyName", "Company Name", "Company_Name"]);
+          const company = getValue(["company", "Company", "companyName", "Company Name", "Company_Name", "CompanyName"]);
           const title = getValue(["title", "Title", "jobTitle", "Job Title", "Person Title", "Person_Title"]);
           const location = getValue(["location", "Location", "Person Location", "Person_Location"]);
           
@@ -437,11 +437,11 @@ router.post("/audiences/:id/import", authMiddleware, adminMiddleware, upload.sin
             return "";
           };
 
-          const email = getValue(["email", "Email", "EMAIL", "EmailAddress", "Email Address"]);
-          const nameField = getValue(["name", "Name", "NAME"]);
+          const email = getValue(["email", "Email", "EMAIL", "EmailAddress", "Email Address", "Person Email"]);
+          const nameField = getValue(["name", "Name", "NAME", "Person FullName"]);
           const firstName = getValue(["firstname", "firstName", "First Name", "FirstName", "Person FirstName", "Person_FirstName"]);
           const lastName = getValue(["lastname", "lastName", "Last Name", "LastName", "Person LastName", "Person_LastName"]);
-          const company = getValue(["company", "Company", "companyName", "Company Name", "Company_Name"]);
+          const company = getValue(["company", "Company", "companyName", "Company Name", "Company_Name", "CompanyName"]);
           const title = getValue(["title", "Title", "jobTitle", "Job Title", "Person Title", "Person_Title"]);
           const location = getValue(["location", "Location", "Person Location", "Person_Location"]);
           
