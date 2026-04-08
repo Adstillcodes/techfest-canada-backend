@@ -802,13 +802,17 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
       baseUrl
     );
 
-    // Insert tracking pixel INSIDE body tag, not after </html>
+    // Insert tracking pixel and footer INSIDE body tag
     const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaign._id}/${email}" width="1" height="1" style="display:none" alt="" />`;
+    
+    // Add footer before tracking pixel
+    const footer = generateCampaignFooter(baseUrl, campaign._id.toString(), email);
+    
     let htmlWithTracking = htmlWithLinksTracked;
     if (htmlWithLinksTracked.includes('</body>')) {
-      htmlWithTracking = htmlWithLinksTracked.replace('</body>', trackingPixel + '</body>');
+      htmlWithTracking = htmlWithLinksTracked.replace('</body>', footer + trackingPixel + '</body>');
     } else {
-      htmlWithTracking = htmlWithLinksTracked.replace('</html>', trackingPixel + '</html>');
+      htmlWithTracking = htmlWithLinksTracked.replace('</html>', footer + trackingPixel + '</html>');
     }
 
     await sendCampaignEmail({
