@@ -238,7 +238,7 @@ router.get("/view/:campaignId/:email", async (req, res) => {
         </p>
         <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
           <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
-          <a href="#" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
+          <a href="${viewUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
         </p>
       </div>
     `;

@@ -4,7 +4,7 @@ import CampaignTemplate from "../models/CampaignTemplate.js";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail, wrapLinksWithTracking } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter } from "../services/emailService.js";
 import { seedCampaignTemplates, createDefaultAudiences, markCampaignSent } from "../services/campaignAutomation.js";
 
 const router = express.Router();
@@ -334,20 +334,8 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
 
         const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
         
-        // Build dynamic footer
-        const unsubscribeUrl = `${API_URL}/api/track/unsubscribe/${campaignIdPrefix}/${encodeURIComponent(contact.email)}`;
-        const viewBrowserUrl = `${API_URL}/api/track/view/${campaignIdPrefix}/${encodeURIComponent(contact.email)}`;
-        const footer = `
-          <div style="background:#1a1035;padding:20px;text-align:center;margin-top:20px;border-radius:0 0 12px 12px;">
-            <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
-              The Tech Festival Canada • Toronto, Ontario
-            </p>
-            <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
-              <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
-              <a href="${viewBrowserUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
-            </p>
-          </div>
-        `;
+        // Build dynamic footer using shared function
+        const footer = generateCampaignFooter(API_URL, campaignIdPrefix, contact.email);
         
         // Insert tracking pixel and footer INSIDE body tag
         let htmlWithTracking = htmlWithLinksTracked;
@@ -512,6 +500,9 @@ function generateEmailHtml(template) {
   const audience = template.audience || "General";
   const purpose = template.purpose || "Event Updates";
 
+  // Use shared footer function (fallback uses generic ID)
+  const fallbackFooter = generateCampaignFooter(API_URL, "fallback", "recipient@example.com");
+
   return `
 <!DOCTYPE html>
 <html>
@@ -548,15 +539,7 @@ function generateEmailHtml(template) {
         </div>
       </div>
       
-      <div style="background:#1a1035;padding:30px;text-align:center;">
-        <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
-          The Tech Festival Canada • Toronto, Ontario
-        </p>
-        <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
-          <a href="#" style="color:rgba(255,255,255,0.5);">Unsubscribe</a> | 
-          <a href="#" style="color:rgba(255,255,255,0.5);">View in browser</a>
-        </p>
-      </div>
+      ${fallbackFooter}
     </div>
   </div>
 </body>

@@ -362,3 +362,25 @@ export async function sendUnsubscribeConfirmationEmail(email) {
     console.error("UNSUBSCRIBE CONFIRMATION EMAIL ERROR:", err);
   }
 }
+
+/* =========================================================
+   SHARED CAMPAIGN EMAIL FOOTER
+   Used by both campaigns.js and campaignAutomation.js
+======================================================== */
+
+export function generateCampaignFooter(baseUrl, campaignId, email) {
+  const unsubscribeUrl = `${baseUrl}/api/track/unsubscribe/${campaignId}/${encodeURIComponent(email)}`;
+  const viewBrowserUrl = `${baseUrl}/api/track/view/${campaignId}/${encodeURIComponent(email)}`;
+  
+  return `
+    <div style="background:#1a1035;padding:20px;text-align:center;margin-top:20px;border-radius:0 0 12px 12px;">
+      <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
+        The Tech Festival Canada • Toronto, Ontario
+      </p>
+      <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
+        <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
+        <a href="${viewBrowserUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
+      </p>
+    </div>
+  `;
+}

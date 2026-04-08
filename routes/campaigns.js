@@ -8,7 +8,7 @@ import crypto from "crypto";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail, wrapLinksWithTracking } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter } from "../services/emailService.js";
 
 const router = express.Router();
 
@@ -53,25 +53,13 @@ function wrapEmailHtml(html, options = {}) {
     console.log(`[WRAP] HTML is empty or whitespace only, returning null`);
     return null;
   }
-  
+   
   // Build dynamic footer if campaign info provided
   let footerHtml = "";
   if (campaignId && recipientEmail && baseUrl) {
-    const unsubscribeUrl = `${baseUrl}/api/track/unsubscribe/${campaignId}/${encodeURIComponent(recipientEmail)}`;
-    const viewBrowserUrl = `${baseUrl}/api/track/view/${campaignId}/${encodeURIComponent(recipientEmail)}`;
-    footerHtml = `
-      <div style="background:#1a1035;padding:20px;text-align:center;margin-top:20px;border-radius:0 0 12px 12px;">
-        <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
-          The Tech Festival Canada • Toronto, Ontario
-        </p>
-        <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
-          <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
-          <a href="${viewBrowserUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
-        </p>
-      </div>
-    `;
+    footerHtml = generateCampaignFooter(baseUrl, campaignId, recipientEmail);
   }
-  
+   
   // Check if already has COMPLETE HTML structure - DOCTYPE + html + head + body
   const hasDoctype = html.includes("<!DOCTYPE html>");
   const hasHtmlOpen = html.includes("<html");
@@ -680,22 +668,8 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
     console.log(`[LAUNCH] After wrap, HTML length: ${wrappedHtml.length}`);
     console.log(`[LAUNCH] HTML preview:\n${wrappedHtml.substring(0, 500)}`);
     
-    // Build dynamic footer
-    const buildFooter = (email) => {
-      const unsubscribeUrl = `${baseUrl}/api/track/unsubscribe/${campaignIdStr}/${encodeURIComponent(email)}`;
-      const viewBrowserUrl = `${baseUrl}/api/track/view/${campaignIdStr}/${encodeURIComponent(email)}`;
-      return `
-        <div style="background:#1a1035;padding:20px;text-align:center;margin-top:20px;border-radius:0 0 12px 12px;">
-          <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
-            The Tech Festival Canada • Toronto, Ontario
-          </p>
-          <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
-            <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
-            <a href="${viewBrowserUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
-          </p>
-        </div>
-      `;
-    };
+    // Build dynamic footer using shared function
+    const buildFooter = (email) => generateCampaignFooter(baseUrl, campaignIdStr, email);
 
     const emailPromises = audience.contacts.map((contact) => {
       try {
