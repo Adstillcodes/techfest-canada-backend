@@ -29,8 +29,9 @@ const allowedOrigins = [
    "https://www.thetechfestival.com",
   "https://thetechfestival.com",
   "http://localhost:5173",
-  "https://techfest-canada-frontend.vercel.app"
-
+  "https://techfest-canada-frontend.vercel.app",
+  "https://techfest-canada-backend.onrender.com",
+  "https://techfest-api.onrender.com"
 ];
 
 app.use(cors({

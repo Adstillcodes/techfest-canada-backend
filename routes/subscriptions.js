@@ -7,29 +7,37 @@ import { sendUnsubscribeConfirmationEmail, sendWelcomeEmail } from "../services/
 const router = express.Router();
 
 async function addToNewsletterAudience(email) {
-  const emailLower = email.toLowerCase();
-  let audience = await Audience.findOne({ name: "Newsletter" });
-  
-  if (!audience) {
-    audience = new Audience({
-      name: "Newsletter",
-      description: "Website newsletter subscribers",
-    });
-  }
-  
-  const exists = audience.contacts.some(c => c.email.toLowerCase() === emailLower);
-  if (!exists) {
-    audience.contacts.push({
-      email: emailLower,
-      addedAt: new Date(),
-    });
-    await audience.save();
+  try {
+    const emailLower = email.toLowerCase();
+    let audience = await Audience.findOne({ name: "Newsletter" });
+    
+    if (!audience) {
+      audience = new Audience({
+        name: "Newsletter",
+        description: "Website newsletter subscribers",
+      });
+    }
+    
+    const exists = audience.contacts.some(c => c.email.toLowerCase() === emailLower);
+    if (!exists) {
+      audience.contacts.push({
+        email: emailLower,
+        addedAt: new Date(),
+      });
+      await audience.save();
+      console.log("[addToNewsletterAudience] Added:", emailLower);
+    } else {
+      console.log("[addToNewsletterAudience] Already exists:", emailLower);
+    }
+  } catch (err) {
+    console.error("[addToNewsletterAudience] Error:", err);
   }
 }
 
 router.post("/subscribe", async (req, res) => {
   try {
     const { email, source = "website" } = req.body;
+    console.log("[SUBSCRIBE] Request received:", { email, source });
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
@@ -45,11 +53,13 @@ router.post("/subscribe", async (req, res) => {
 
     if (existing) {
       if (existing.subscribed) {
+        console.log("[SUBSCRIBE] Already subscribed:", emailLower);
         return res.json({ message: "Already subscribed" });
       }
       existing.subscribed = true;
       existing.source = source;
       await existing.save();
+      console.log("[SUBSCRIBE] Resubscribed:", emailLower);
       return res.json({ message: "Resubscribed successfully" });
     }
 
@@ -57,10 +67,17 @@ router.post("/subscribe", async (req, res) => {
       email: emailLower,
       source,
     });
+    console.log("[SUBSCRIBE] Created subscription:", subscription._id);
 
     await addToNewsletterAudience(emailLower);
+    console.log("[SUBSCRIBE] Added to audience");
     
-    await sendWelcomeEmail(emailLower, "");
+    try {
+      await sendWelcomeEmail(emailLower, "");
+      console.log("[SUBSCRIBE] Welcome email sent");
+    } catch (emailErr) {
+      console.error("[SUBSCRIBE] Welcome email failed:", emailErr);
+    }
 
     res.status(201).json({ message: "Subscribed successfully" });
   } catch (err) {
