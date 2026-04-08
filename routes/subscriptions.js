@@ -2,9 +2,30 @@ import express from "express";
 import Subscription from "../models/Subscription.js";
 import Audience from "../models/Audience.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
-import { sendUnsubscribeConfirmationEmail } from "../services/emailService.js";
+import { sendUnsubscribeConfirmationEmail, sendWelcomeEmail } from "../services/emailService.js";
 
 const router = express.Router();
+
+async function addToNewsletterAudience(email) {
+  const emailLower = email.toLowerCase();
+  let audience = await Audience.findOne({ name: "Newsletter" });
+  
+  if (!audience) {
+    audience = new Audience({
+      name: "Newsletter",
+      description: "Website newsletter subscribers",
+    });
+  }
+  
+  const exists = audience.contacts.some(c => c.email.toLowerCase() === emailLower);
+  if (!exists) {
+    audience.contacts.push({
+      email: emailLower,
+      addedAt: new Date(),
+    });
+    await audience.save();
+  }
+}
 
 router.post("/subscribe", async (req, res) => {
   try {
@@ -19,21 +40,27 @@ router.post("/subscribe", async (req, res) => {
       return res.status(400).json({ error: "Invalid email format" });
     }
 
-    const existing = await Subscription.findOne({ email: email.toLowerCase() });
+    const emailLower = email.toLowerCase();
+    const existing = await Subscription.findOne({ email: emailLower });
 
     if (existing) {
       if (existing.subscribed) {
         return res.json({ message: "Already subscribed" });
       }
       existing.subscribed = true;
+      existing.source = source;
       await existing.save();
       return res.json({ message: "Resubscribed successfully" });
     }
 
     const subscription = await Subscription.create({
-      email: email.toLowerCase(),
+      email: emailLower,
       source,
     });
+
+    await addToNewsletterAudience(emailLower);
+    
+    await sendWelcomeEmail(emailLower, "");
 
     res.status(201).json({ message: "Subscribed successfully" });
   } catch (err) {
