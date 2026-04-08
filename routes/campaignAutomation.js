@@ -334,12 +334,27 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
 
         const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
         
-        // Insert tracking pixel INSIDE body tag, not after </html>
+        // Build dynamic footer
+        const unsubscribeUrl = `${API_URL}/api/track/unsubscribe/${campaignIdPrefix}/${encodeURIComponent(contact.email)}`;
+        const viewBrowserUrl = `${API_URL}/api/track/view/${campaignIdPrefix}/${encodeURIComponent(contact.email)}`;
+        const footer = `
+          <div style="background:#1a1035;padding:20px;text-align:center;margin-top:20px;border-radius:0 0 12px 12px;">
+            <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
+              The Tech Festival Canada • Toronto, Ontario
+            </p>
+            <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
+              <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
+              <a href="${viewBrowserUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
+            </p>
+          </div>
+        `;
+        
+        // Insert tracking pixel and footer INSIDE body tag
         let htmlWithTracking = htmlWithLinksTracked;
         if (htmlWithLinksTracked.includes('</body>')) {
-          htmlWithTracking = htmlWithLinksTracked.replace('</body>', trackingPixel + '</body>');
+          htmlWithTracking = htmlWithLinksTracked.replace('</body>', footer + trackingPixel + '</body>');
         } else {
-          htmlWithTracking = htmlWithLinksTracked.replace('</html>', trackingPixel + '</html>');
+          htmlWithTracking = htmlWithLinksTracked.replace('</html>', footer + trackingPixel + '</html>');
         }
 
         const tracking = new EmailTracking({

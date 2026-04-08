@@ -1,6 +1,7 @@
 import express from "express";
 import EmailTracking from "../models/EmailTracking.js";
 import Campaign from "../models/Campaign.js";
+import CampaignTemplate from "../models/CampaignTemplate.js";
 
 const router = express.Router();
 
@@ -150,6 +151,190 @@ router.get("/click", async (req, res) => {
     } else {
       res.status(400).json({ error: "Invalid URL" });
     }
+  }
+});
+
+// ================= VIEW IN BROWSER =================
+router.get("/view/:campaignId/:email", async (req, res) => {
+  try {
+    const { campaignId, email } = req.params;
+    const emailLower = decodeURIComponent(email).toLowerCase();
+    const baseUrl = process.env.FRONTEND_URL || "https://www.thetechfestival.com";
+
+    console.log(`[VIEW IN BROWSER] campaignId: ${campaignId}, email: ${emailLower}`);
+
+    // Try to find the campaign/template
+    let htmlContent = null;
+    let subject = "Email";
+
+    // Check if it's a template-based campaign
+    if (campaignId.startsWith("tpl-")) {
+      const template = await CampaignTemplate.findOne({ id: campaignId.replace("tpl-", "") });
+      if (template) {
+        subject = template.subject || "Email";
+        htmlContent = template.htmlBody;
+      }
+    }
+
+    // If not found, check Campaign model
+    if (!htmlContent) {
+      const campaign = await Campaign.findById(campaignId);
+      if (campaign) {
+        subject = campaign.subject || "Email";
+        htmlContent = campaign.template;
+      }
+    }
+
+    // Also try finding by name
+    if (!htmlContent) {
+      const campaignByName = await Campaign.findOne({ name: campaignId });
+      if (campaignByName) {
+        subject = campaignByName.subject || "Email";
+        htmlContent = campaignByName.template;
+      }
+    }
+
+    // If still not found, return a simple message
+    if (!htmlContent) {
+      return res.status(404).send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Email Not Found</title>
+          <style>
+            body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+            h1 { color: #7a3fd1; }
+            p { color: #666; }
+          </style>
+        </head>
+        <body>
+          <h1>Email Not Found</h1>
+          <p>This email could not be found or has expired.</p>
+          <p><a href="${baseUrl}">Return to TechFest Canada</a></p>
+        </body>
+        </html>
+      `);
+    }
+
+    // Apply personalization to the HTML
+    let personalizedHtml = htmlContent;
+    const contactName = emailLower.split("@")[0];
+    
+    // Replace common personalization tokens
+    personalizedHtml = personalizedHtml.replace(/\/firstname/gi, contactName);
+    personalizedHtml = personalizedHtml.replace(/\/lastname/gi, "");
+    personalizedHtml = personalizedHtml.replace(/\/company/gi, "");
+    personalizedHtml = personalizedHtml.replace(/\/email/gi, emailLower);
+
+    // Build footer with unsubscribe link
+    const unsubscribeUrl = `${baseUrl}/api/unsubscribe/confirm/${campaignId}/${encodeURIComponent(emailLower)}`;
+    const viewUrl = `${baseUrl}/api/track/view/${campaignId}/${encodeURIComponent(emailLower)}`;
+
+    const footerHtml = `
+      <div style="background:#1a1035;padding:30px;text-align:center;margin-top:30px;">
+        <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
+          The Tech Festival Canada • Toronto, Ontario
+        </p>
+        <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
+          <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
+          <a href="#" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
+        </p>
+      </div>
+    `;
+
+    // Inject footer before closing body
+    personalizedHtml = personalizedHtml.replace(/<\/body>/i, footerHtml + "</body>");
+
+    // Add tracking pixel
+    const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(emailLower)}" width="1" height="1" style="display:none" />`;
+    personalizedHtml = personalizedHtml.replace(/<\/body>/i, trackingPixel + "</body>");
+
+    // Wrap in full HTML if needed
+    if (!personalizedHtml.includes("<html")) {
+      personalizedHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f0ff;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+      ${personalizedHtml}
+    </div>
+  </div>
+</body>
+</html>`;
+    }
+
+    res.set("Content-Type", "text/html");
+    res.send(personalizedHtml);
+
+  } catch (err) {
+    console.error("View in browser error:", err);
+    res.status(500).send("Error loading email");
+  }
+});
+
+// ================= UNSUBSCRIBE CONFIRMATION PAGE =================
+router.get("/unsubscribe/:campaignId/:email", async (req, res) => {
+  try {
+    const { campaignId, email } = req.params;
+    const emailLower = decodeURIComponent(email).toLowerCase();
+    const baseUrl = process.env.FRONTEND_URL || "https://www.thetechfestival.com";
+
+    // Get campaign info for display
+    let campaignName = "our emails";
+    try {
+      const campaign = await Campaign.findById(campaignId);
+      if (campaign) campaignName = campaign.name;
+    } catch (e) {
+      // Ignore - use default
+    }
+
+    const confirmUrl = `${baseUrl}/api/unsubscribe/confirm/${campaignId}/${encodeURIComponent(emailLower)}`;
+
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unsubscribe - TechFest Canada</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; background: linear-gradient(135deg, #7a3fd1 0%, #f5a623 100%); min-height: 100vh; font-family: Arial, sans-serif; }
+    .container { max-width: 500px; margin: 50px auto; padding: 20px; }
+    .card { background: white; border-radius: 16px; padding: 40px; text-align: center; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    h1 { color: #7a3fd1; margin: 0 0 20px; font-size: 24px; }
+    p { color: #666; line-height: 1.6; margin: 0 0 20px; }
+    .btn { display: inline-block; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; margin: 5px; transition: transform 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, #7a3fd1, #f5a623); color: white; }
+    .btn-primary:hover { transform: scale(1.02); }
+    .btn-secondary { background: #f3f4f6; color: #666; }
+    .btn-secondary:hover { background: #e5e7eb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Unsubscribe from Emails</h1>
+      <p>You are about to unsubscribe from <strong>${campaignName}</strong>.</p>
+      <p>You will no longer receive emails from The Tech Festival Canada using this email address.</p>
+      <div>
+        <a href="${confirmUrl}" class="btn btn-primary">Yes, Unsubscribe</a>
+        <a href="${baseUrl}" class="btn btn-secondary">Cancel</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+    `.trim());
+  } catch (err) {
+    console.error("Unsubscribe page error:", err);
+    res.status(500).send("Error loading unsubscribe page");
   }
 });
 

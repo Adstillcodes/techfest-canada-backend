@@ -294,9 +294,71 @@ export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl)
         return `href="${trackingUrl}"`;
       }
     );
-    return trackedHtml;
+      return trackedHtml;
   } catch (err) {
     console.error("Error in wrapLinksWithTracking:", err);
     return html;
+  }
+}
+
+/* =========================================================
+   UNSUBSCRIBE CONFIRMATION EMAIL
+======================================================== */
+
+export async function sendUnsubscribeConfirmationEmail(email) {
+  try {
+    const baseUrl = process.env.FRONTEND_URL || "https://www.thetechfestival.com";
+    
+    await resend.emails.send({
+      from: "TechFest Canada <campaigns@thetechfestival.com>",
+      to: email,
+      subject: "You've been unsubscribed from TechFest Canada",
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f0ff;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.1);">
+      <div style="background:linear-gradient(135deg,#7a3fd1,#f5a623);padding:40px 30px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:24px;">The Tech Festival Canada</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:10px 0 0;font-size:14px;">Unsubscribe Confirmation</p>
+      </div>
+      
+      <div style="padding:40px 30px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:20px;">✓</div>
+        <h2 style="color:#333;margin:0 0 20px;">You've been unsubscribed</h2>
+        <p style="color:#666;font-size:16px;line-height:1.6;">
+          You've been successfully unsubscribed from The Tech Festival Canada emails.
+        </p>
+        <p style="color:#666;font-size:16px;line-height:1.6;">
+          We're sorry to see you go! If you unsubscribed by mistake, you can always re-subscribe on our website.
+        </p>
+        
+        <div style="margin-top:30px;">
+          <a href="${baseUrl}" style="display:inline-block;background:linear-gradient(135deg,#7a3fd1,#f5a623);color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">
+            Return to TechFest Canada
+          </a>
+        </div>
+      </div>
+      
+      <div style="background:#1a1035;padding:30px;text-align:center;">
+        <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
+          The Tech Festival Canada • Toronto, Ontario
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+      `
+    });
+
+    console.log("Unsubscribe confirmation email sent");
+  } catch (err) {
+    console.error("UNSUBSCRIBE CONFIRMATION EMAIL ERROR:", err);
   }
 }
