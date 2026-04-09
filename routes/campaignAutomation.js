@@ -4,7 +4,7 @@ import CampaignTemplate from "../models/CampaignTemplate.js";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter, sanitizeEmailHtml } from "../services/emailService.js";
 import { seedCampaignTemplates, createDefaultAudiences, markCampaignSent } from "../services/campaignAutomation.js";
 
 const router = express.Router();
@@ -35,6 +35,9 @@ const adminMiddleware = (req, res, next) => {
 
 // Helper: Wrap HTML with proper email structure (Gmail/Outlook compatible)
 function wrapEmailHtml(html) {
+  // Sanitize: Remove <title> tags
+  html = sanitizeEmailHtml(html);
+  
   console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 80) : 'null/undefined'}`);
   
   if (!html || (typeof html === 'string' && html.trim() === "")) {

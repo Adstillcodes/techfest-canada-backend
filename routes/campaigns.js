@@ -8,7 +8,7 @@ import crypto from "crypto";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter, sanitizeEmailHtml } from "../services/emailService.js";
 
 const router = express.Router();
 
@@ -46,6 +46,9 @@ function generateTrackingId() {
 // Optional params for dynamic footer links
 function wrapEmailHtml(html, options = {}) {
   const { campaignId, recipientEmail, baseUrl } = options;
+  
+  // Sanitize: Remove <title> tags
+  html = sanitizeEmailHtml(html);
   
   console.log(`[WRAP] Input HTML length: ${html ? html.length : 0}, starts with: ${html ? html.substring(0, 80) : 'null/undefined'}`);
   

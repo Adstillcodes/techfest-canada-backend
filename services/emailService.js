@@ -5,6 +5,16 @@ import QRCode from "qrcode";
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 /* =========================================================
+   SANITIZE EMAIL HTML - Remove <title> tags
+========================================================= */
+
+export function sanitizeEmailHtml(html) {
+  if (!html) return html;
+  // Remove <title> tags and their content
+  return html.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, "");
+}
+
+/* =========================================================
    HELPER: GENERATE TICKET PDF
 ========================================================= */
 
