@@ -4,7 +4,7 @@ import CampaignTemplate from "../models/CampaignTemplate.js";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter, sanitizeEmailHtml } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter, sanitizeEmailHtml, sendBatchCampaignEmails } from "../services/emailService.js";
 import { seedCampaignTemplates, createDefaultAudiences, markCampaignSent } from "../services/campaignAutomation.js";
 
 const router = express.Router();
@@ -292,15 +292,12 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       console.log(`[SEND] Generated HTML length: ${html.length}`);
     }
 
-    // Validate template before sending
+// Validate template before sending
     const wrappedHtml = wrapEmailHtml(html);
     if (!wrappedHtml) {
-      return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending." });
+      return res.status(400).json({ error: "Email template is empty. Please add content and save the template before launching." });
     }
-    console.log(`[SEND] After wrap, HTML length: ${wrappedHtml.length}`);
-    console.log(`[SEND] HTML preview:\n${wrappedHtml.substring(0, 500)}`);
-
-    const trackingRecords = [];
+    
     const templateIdStr = template._id.toString();
     const campaignIdPrefix = `tpl-${templateIdStr}`;
 
@@ -312,107 +309,77 @@ router.post("/templates/:id/send", authMiddleware, adminMiddleware, async (req, 
       console.error(`[AUTOMATION] Error clearing tracking:`, err.message);
     }
     
-    const emailPromises = audience.contacts.map((contact) => {
-      try {
-        console.log(`[AUTOMATION] Processing contact: ${contact.email}`);
-        console.log(`[AUTOMATION] Contact data:`, { firstName: contact.firstName, lastName: contact.lastName, company: contact.company });
-        
-        const personalizedHtml = wrappedHtml
-          .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
-          .replace(/\{\{email\}\}/g, contact.email)
-          .replace(/\/firstname/gi, contact.firstName || contact.name || contact.email.split("@")[0])
-          .replace(/\/lastname/gi, contact.lastName || "")
-          .replace(/\/company/gi, contact.company || "")
-          .replace(/\/title/gi, contact.title || "")
-          .replace(/\/location/gi, contact.location || "");
-
-        console.log(`[AUTOMATION] Personalized HTML sample:`, personalizedHtml.substring(0, 300));
-
-        const htmlWithLinksTracked = wrapLinksWithTracking(
-          personalizedHtml,
-          campaignIdPrefix,
-          contact.email,
-          API_URL
-        );
-
-        const trackingPixel = `<img src="${API_URL}/api/track/open/${campaignIdPrefix}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
-        
-        // Build dynamic footer using shared function
-        const footer = generateCampaignFooter(API_URL, campaignIdPrefix, contact.email);
-        
-        // Insert tracking pixel and footer INSIDE body tag
-        let htmlWithTracking = htmlWithLinksTracked;
-        if (htmlWithLinksTracked.includes('</body>')) {
-          htmlWithTracking = htmlWithLinksTracked.replace('</body>', footer + trackingPixel + '</body>');
-        } else {
-          htmlWithTracking = htmlWithLinksTracked.replace('</html>', footer + trackingPixel + '</html>');
-        }
-
-        const tracking = new EmailTracking({
-          campaignId: campaignIdPrefix,
-          email: contact.email,
-          status: "pending",
-        });
-        trackingRecords.push(tracking.save());
-
-        return sendCampaignEmail({
-          to: contact.email,
-          subject: finalSubject,
-          html: htmlWithTracking,
-          campaignId: campaignIdPrefix,
-          recipientEmail: contact.email,
-          text: textBody || template.textBody,
-        });
-      } catch (err) {
-        console.error(`Error sending to ${contact.email}:`, err);
-        return Promise.resolve({ success: false, error: err.message });
-      }
+    // Send immediate response
+    res.json({
+      success: true,
+      message: `Campaign sending started for ${audience.contacts.length} recipients. Emails will be sent in background.`,
+      recipientCount: audience.contacts.length,
     });
-
-    await Promise.allSettled(emailPromises);
-    await Promise.all(trackingRecords);
-
-    const sentCount = audience.contacts.length;
-
-    if (subject) template.subject = subject;
-    if (htmlBody) template.htmlBody = htmlBody;
-    if (textBody) template.textBody = textBody;
-    template.status = "sent";
-    template.sentAt = new Date();
-    await template.save();
-
-    const audienceMap = {
-      "Sponsors": "Sponsor Leads",
-      "Exhibitors": "Exhibitor Leads",
-      "Delegates": "Delegate Prospects",
-      "Visitors": "Visitor Prospects",
-    };
-    const audienceName = audienceMap[template.audience] || template.audience;
-    const campaignName = `${template.purpose || 'Campaign'} - ${template.phase || ''} (${template.audience || 'General'})`;
     
-    let campaign = await Campaign.findOne({ name: campaignName });
-    if (!campaign) {
-      const audienceDoc = await Audience.findOne({ name: audienceName });
-      campaign = new Campaign({
-        name: campaignName,
-        subject: finalSubject,
-        audienceId: audienceDoc?._id || null,
-        template: html,
-        status: "sent",
-        sentAt: new Date(),
-        stats: {
-          sent: sentCount,
-          uniqueOpens: 0,
-          totalOpens: 0,
-          uniqueClicks: 0,
-          totalClicks: 0,
-          bounces: 0,
-          hardBounces: 0,
-          softBounces: 0,
-          unsubscribes: 0,
-        },
-        createdBy: req.user?.userId,
-      });
+    // Process in background
+    (async () => {
+      try {
+        console.log(`[AUTOMATION BACKGROUND] Starting batch send for ${audience.contacts.length} recipients`);
+        
+        // Prepare email list
+        const emailList = audience.contacts.map((contact, idx) => ({
+          email: contact.email,
+          trackingId: `tpl-${templateIdStr}-${idx}`,
+        }));
+        
+        // Batch send with rate limiting
+        const batchResult = await sendBatchCampaignEmails(
+          emailList,
+          finalSubject,
+          wrappedHtml,
+          campaignIdPrefix,
+          API_URL,
+          5
+        );
+        
+        console.log(`[AUTOMATION BACKGROUND] Batch send complete:`, batchResult);
+        
+        const sentCount = audience.contacts.length;
+
+        if (subject) template.subject = subject;
+        if (htmlBody) template.htmlBody = htmlBody;
+        if (textBody) template.textBody = textBody;
+        template.status = "sent";
+        template.sentAt = new Date();
+        await template.save();
+
+        const audienceMap = {
+          "Sponsors": "Sponsor Leads",
+          "Exhibitors": "Exhibitor Leads",
+          "Delegates": "Delegate Prospects",
+          "Visitors": "Visitor Prospects",
+        };
+        const audienceName = audienceMap[template.audience] || template.audience;
+        const campaignName = `${template.purpose || 'Campaign'} - ${template.phase || ''} (${template.audience || 'General'})`;
+        
+        let campaign = await Campaign.findOne({ name: campaignName });
+        if (!campaign) {
+          const audienceDoc = await Audience.findOne({ name: audienceName });
+          campaign = new Campaign({
+            name: campaignName,
+            subject: finalSubject,
+            audienceId: audienceDoc?._id || null,
+            template: html,
+            status: "sent",
+            sentAt: new Date(),
+            stats: {
+              sent: sentCount,
+              uniqueOpens: 0,
+              totalOpens: 0,
+              uniqueClicks: 0,
+              totalClicks: 0,
+              bounces: 0,
+              hardBounces: 0,
+              softBounces: 0,
+              unsubscribes: 0,
+            },
+            createdBy: req.user?.userId,
+          });
     } else {
       campaign.stats.sent = sentCount;
       campaign.status = "sent";

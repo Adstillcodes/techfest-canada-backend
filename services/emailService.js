@@ -288,6 +288,84 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
 }
 
 /* =========================================================
+   BATCH CAMPAIGN EMAIL - Rate-limited sending
+========================================================= */
+
+export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, campaignId, baseUrl, ratePerSecond = 5) {
+  const delayMs = Math.ceil(1000 / ratePerSecond); // Delay between each send
+  const results = [];
+  
+  console.log(`[BATCH SEND] Starting batch send: ${emails.length} emails at ${ratePerSecond}/sec (delay: ${delayMs}ms)`);
+  
+  for (let i = 0; i < emails.length; i++) {
+    const { email, trackingId } = emails[i];
+    
+    try {
+      // Generate personalized HTML for this recipient
+      let personalizedHtml = htmlTemplate
+        .replace(/\{\{name}}/g, email.split('@')[0])
+        .replace(/\{\{email}}/g, email)
+        .replace(/\{\{firstname}}/g, email.split('@')[0])
+        .replace(/\{\{lastname}}/g, "")
+        .replace(/\{\{company}}/g, "")
+        .replace(/\{\{title}}/g, "")
+        .replace(/\{\{location}}/g, "");
+      
+      // Add tracking pixel
+      const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(email)}" width="1" height="1" style="display:none" alt="" />`;
+      if (personalizedHtml.includes('</body>')) {
+        personalizedHtml = personalizedHtml.replace('</body>', trackingPixel + '</body>');
+      } else if (personalizedHtml.includes('</html>')) {
+        personalizedHtml = personalizedHtml.replace('</html>', trackingPixel + '</html>');
+      }
+      
+      // Add footer
+      const footer = generateCampaignFooter(baseUrl, campaignId, email);
+      if (personalizedHtml.includes('</body>')) {
+        personalizedHtml = personalizedHtml.replace('</body>', footer + '</body>');
+      } else {
+        personalizedHtml += footer;
+      }
+      
+      const emailPayload = {
+        from: "TechFest Canada <campaigns@thetechfestival.com>",
+        to: [email],
+        subject: subject,
+        html: personalizedHtml,
+      };
+      
+      const result = await resend.emails.send(emailPayload);
+      
+      if (result.error) {
+        console.error(`[BATCH SEND] Error to ${email}:`, result.error);
+        results.push({ email, success: false, error: result.error });
+      } else {
+        results.push({ email, success: true, id: result.data?.id });
+      }
+    } catch (err) {
+      console.error(`[BATCH SEND] Exception to ${email}:`, err.message);
+      results.push({ email, success: false, error: err.message });
+    }
+    
+    // Rate limiting delay (skip delay for last email)
+    if (i < emails.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+    
+    // Progress log every 25 emails
+    if ((i + 1) % 25 === 0 || i === emails.length - 1) {
+      console.log(`[BATCH SEND] Progress: ${i + 1}/${emails.length} sent`);
+    }
+  }
+  
+  const successCount = results.filter(r => r.success).length;
+  const failCount = results.length - successCount;
+  console.log(`[BATCH SEND] Complete: ${successCount} success, ${failCount} failed`);
+  
+  return { results, successCount, failCount };
+}
+
+/* =========================================================
    TRACKED LINK WRAPPER
    Wraps URLs in HTML with click tracking
 ========================================================= */

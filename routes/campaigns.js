@@ -8,7 +8,7 @@ import crypto from "crypto";
 import Campaign from "../models/Campaign.js";
 import Audience from "../models/Audience.js";
 import EmailTracking from "../models/EmailTracking.js";
-import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter, sanitizeEmailHtml } from "../services/emailService.js";
+import { sendCampaignEmail, wrapLinksWithTracking, generateCampaignFooter, sanitizeEmailHtml, sendBatchCampaignEmails } from "../services/emailService.js";
 
 const router = express.Router();
 
@@ -681,86 +681,49 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
       return res.status(400).json({ error: "Email template is empty. Please add content and save the template before launching." });
     }
     console.log(`[LAUNCH] After wrap, HTML length: ${wrappedHtml.length}`);
-    console.log(`[LAUNCH] HTML preview:\n${wrappedHtml.substring(0, 500)}`);
     
-    // Build dynamic footer using shared function
-    const buildFooter = (email) => generateCampaignFooter(baseUrl, campaignIdStr, email);
-
-    const emailPromises = audience.contacts.map((contact) => {
-      try {
-        console.log(`Processing contact: ${contact.email}`);
-        console.log(`Contact data:`, { firstName: contact.firstName, lastName: contact.lastName, company: contact.company });
-        
-        const recipientTrackingId = generateTrackingId();
-        
-        // Replace personalization tokens
-        const personalizedHtml = wrappedHtml
-          .replace(/\{\{name\}\}/g, contact.name || contact.email.split("@")[0])
-          .replace(/\{\{email\}\}/g, contact.email)
-          .replace(/\/firstname/gi, contact.firstName || contact.name || contact.email.split("@")[0])
-          .replace(/\/lastname/gi, contact.lastName || "")
-          .replace(/\/company/gi, contact.company || "")
-          .replace(/\/title/gi, contact.title || "")
-          .replace(/\/location/gi, contact.location || "");
-
-        console.log(`[LAUNCH] Personalized HTML length: ${personalizedHtml.length}`);
-        console.log(`[LAUNCH] Personalized HTML preview:\n${personalizedHtml.substring(0, 500)}`);
-
-        const htmlWithLinksTracked = wrapLinksWithTracking(
-          personalizedHtml,
-          campaignIdStr,
-          contact.email,
-          baseUrl
-        );
-
-        console.log(`[LAUNCH] After link tracking, HTML length: ${htmlWithLinksTracked.length}`);
-
-        const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignIdStr}/${encodeURIComponent(contact.email)}" width="1" height="1" style="display:none" alt="" />`;
-        // Insert tracking pixel INSIDE body tag, not after </html>
-        let htmlWithTracking = htmlWithLinksTracked;
-        
-        // Add footer before tracking pixel
-        const footer = buildFooter(contact.email);
-        
-        if (htmlWithLinksTracked.includes('</body>')) {
-          htmlWithTracking = htmlWithLinksTracked.replace('</body>', footer + trackingPixel + '</body>');
-        } else {
-          // Fallback: append before </html> if </body> not found
-          htmlWithTracking = htmlWithLinksTracked.replace('</html>', footer + trackingPixel + '</html>');
-        }
-
-        console.log(`[LAUNCH] Final HTML to send (first 500 chars):\n${htmlWithTracking.substring(0, 500)}`);
-        console.log(`[LAUNCH] Final HTML to send (last 500 chars):\n${htmlWithTracking.substring(htmlWithTracking.length - 500)}`);
-
-        return sendCampaignEmail({
-          to: contact.email,
-          subject: campaign.subject,
-          html: htmlWithTracking,
-          campaignId: campaignIdStr,
-          recipientEmail: contact.email,
-          recipientTrackingId,
-          baseUrl,
-        });
-      } catch (err) {
-        console.error(`Error sending to ${contact.email}:`, err);
-        return Promise.resolve({ success: false, error: err.message });
-      }
-    });
-
-    await Promise.allSettled(emailPromises);
-
-    campaign.stats.sent = audience.contacts.length;
-    campaign.status = "sent";
-    await campaign.save();
-
-    console.log(`[CAMPAIGN LAUNCH] Campaign "${campaign.name}" (ID: ${campaign._id}) sent to ${audience.contacts.length} recipients`);
-    console.log(`[CAMPAIGN LAUNCH] Stats: sent=${campaign.stats.sent}, uniqueOpens=${campaign.stats.uniqueOpens}, uniqueClicks=${campaign.stats.uniqueClicks}`);
-
+    // Send immediate response, process in background
     res.json({
       success: true,
-      message: `Campaign sent to ${audience.contacts.length} recipients`,
-      stats: campaign.stats,
+      message: `Campaign launch started for ${audience.contacts.length} recipients. Emails will be sent in background.`,
+      recipientCount: audience.contacts.length,
     });
+    
+    // Process in background
+    (async () => {
+      try {
+        console.log(`[LAUNCH BACKGROUND] Starting batch send for ${audience.contacts.length} recipients`);
+        
+        // Prepare email list with tracking IDs
+        const emailList = audience.contacts.map((contact) => ({
+          email: contact.email,
+          trackingId: generateTrackingId(),
+        }));
+        
+        // Use batch send with rate limiting (5 per second to stay within Resend limits)
+        const batchResult = await sendBatchCampaignEmails(
+          emailList,
+          campaign.subject,
+          wrappedHtml,
+          campaignIdStr,
+          baseUrl,
+          5 // rate per second
+        );
+        
+        console.log(`[LAUNCH BACKGROUND] Batch send complete:`, batchResult);
+        
+        // Update campaign stats
+        campaign.stats.sent = audience.contacts.length;
+        campaign.status = "sent";
+        await campaign.save();
+        
+        console.log(`[CAMPAIGN LAUNCH] Campaign "${campaign.name}" (ID: ${campaign._id}) sent to ${audience.contacts.length} recipients`);
+      } catch (err) {
+        console.error("[LAUNCH BACKGROUND] Batch send error:", err);
+        campaign.status = "failed";
+        await campaign.save();
+      }
+    })();
   } catch (err) {
     console.error("Launch campaign error:", err);
     console.error("Error stack:", err.stack);
@@ -856,7 +819,20 @@ router.get("/:id/tracking", authMiddleware, adminMiddleware, async (req, res) =>
       return res.status(404).json({ error: "Campaign not found" });
     }
 
-    const trackingData = await EmailTracking.find({ campaignId: req.params.id });
+    const { page = 1, limit = 50 } = req.query;
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 50;
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count for pagination
+    const totalRecords = await EmailTracking.countDocuments({ campaignId: req.params.id });
+    const totalPages = Math.ceil(totalRecords / limitNum);
+
+    // Fetch paginated tracking data
+    const trackingData = await EmailTracking.find({ campaignId: req.params.id })
+      .sort({ lastOpenAt: -1, lastClickAt: -1 })
+      .skip(skip)
+      .limit(limitNum);
 
     const recipients = trackingData.map((t) => ({
       email: t.email,
@@ -895,6 +871,12 @@ router.get("/:id/tracking", authMiddleware, adminMiddleware, async (req, res) =>
       recipients,
       timeline,
       totalSent: campaign.stats.sent,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        totalRecords,
+        totalPages,
+      },
     });
   } catch (err) {
     console.error("Tracking error:", err);
