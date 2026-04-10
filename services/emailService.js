@@ -304,12 +304,19 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
     const batchEmails = chunk.map(({ email }) => {
       let personalizedHtml = htmlTemplate
         .replace(/\{\{name}}/g, email.split('@')[0])
-        .replace(/\{\{email}}/g, email)
         .replace(/\{\{firstname}}/g, email.split('@')[0])
         .replace(/\{\{lastname}}/g, "")
         .replace(/\{\{company}}/g, "")
         .replace(/\{\{title}}/g, "")
-        .replace(/\{\{location}}/g, "");
+        .replace(/\{\{location}}/g, "")
+        .replace(/\{\{email}}/g, email)
+        // Also support /token format
+        .replace(/\/firstname/gi, email.split('@')[0])
+        .replace(/\/lastname/gi, "")
+        .replace(/\/company/gi, "")
+        .replace(/\/title/gi, "")
+        .replace(/\/location/gi, "")
+        .replace(/\/name/gi, email.split('@')[0]);
       
       const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(email)}" width="1" height="1" style="display:none" alt="" />`;
       if (personalizedHtml.includes('</body>')) {
