@@ -288,20 +288,20 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
 }
 
 /* =========================================================
-   BATCH CAMPAIGN EMAIL - Rate-limited sending
+   BATCH CAMPAIGN EMAIL - Using Resend Batch API
+   Sends up to 100 emails per API call - no rate limits!
 ========================================================= */
 
-export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, campaignId, baseUrl, ratePerSecond = 5) {
-  const delayMs = Math.ceil(1000 / ratePerSecond); // Delay between each send
+export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, campaignId, baseUrl) {
+  const BATCH_SIZE = 100;
   const results = [];
   
-  console.log(`[BATCH SEND] Starting batch send: ${emails.length} emails at ${ratePerSecond}/sec (delay: ${delayMs}ms)`);
+  console.log(`[BATCH SEND] Starting batch send: ${emails.length} emails using Resend batch API`);
   
-  for (let i = 0; i < emails.length; i++) {
-    const { email, trackingId } = emails[i];
+  for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+    const chunk = emails.slice(i, i + BATCH_SIZE);
     
-    try {
-      // Generate personalized HTML for this recipient
+    const batchEmails = chunk.map(({ email }) => {
       let personalizedHtml = htmlTemplate
         .replace(/\{\{name}}/g, email.split('@')[0])
         .replace(/\{\{email}}/g, email)
@@ -311,7 +311,6 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
         .replace(/\{\{title}}/g, "")
         .replace(/\{\{location}}/g, "");
       
-      // Add tracking pixel
       const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(email)}" width="1" height="1" style="display:none" alt="" />`;
       if (personalizedHtml.includes('</body>')) {
         personalizedHtml = personalizedHtml.replace('</body>', trackingPixel + '</body>');
@@ -319,7 +318,6 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
         personalizedHtml = personalizedHtml.replace('</html>', trackingPixel + '</html>');
       }
       
-      // Add footer
       const footer = generateCampaignFooter(baseUrl, campaignId, email);
       if (personalizedHtml.includes('</body>')) {
         personalizedHtml = personalizedHtml.replace('</body>', footer + '</body>');
@@ -327,42 +325,44 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
         personalizedHtml += footer;
       }
       
-      const emailPayload = {
+      return {
         from: "TechFest Canada <campaigns@thetechfestival.com>",
         to: [email],
         subject: subject,
         html: personalizedHtml,
       };
-      
-      const result = await resend.emails.send(emailPayload);
+    });
+    
+    try {
+      const result = await resend.batch.send(batchEmails);
       
       if (result.error) {
-        console.error(`[BATCH SEND] Error to ${email}:`, result.error);
-        results.push({ email, success: false, error: result.error });
+        console.error(`[BATCH SEND] Batch error:`, result.error);
+        chunk.forEach(({ email }) => {
+          results.push({ email, success: false, error: result.error.message });
+        });
       } else {
-        results.push({ email, success: true, id: result.data?.id });
+        const sentCount = result.data?.length || 0;
+        console.log(`[BATCH SEND] Batch ${Math.floor(i/BATCH_SIZE) + 1}: ${sentCount} emails sent`);
+        result.data?.forEach((item) => {
+          results.push({ email: item.email, success: true, id: item.id });
+        });
       }
     } catch (err) {
-      console.error(`[BATCH SEND] Exception to ${email}:`, err.message);
-      results.push({ email, success: false, error: err.message });
+      console.error(`[BATCH SEND] Exception:`, err.message);
+      chunk.forEach(({ email }) => {
+        results.push({ email, success: false, error: err.message });
+      });
     }
     
-    // Rate limiting delay (skip delay for last email)
-    if (i < emails.length - 1) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
-    }
-    
-    // Progress log every 25 emails
-    if ((i + 1) % 25 === 0 || i === emails.length - 1) {
-      console.log(`[BATCH SEND] Progress: ${i + 1}/${emails.length} sent`);
-    }
+    const progress = Math.min(i + BATCH_SIZE, emails.length);
+    console.log(`[BATCH SEND] Progress: ${progress}/${emails.length}`);
   }
   
   const successCount = results.filter(r => r.success).length;
-  const failCount = results.length - successCount;
-  console.log(`[BATCH SEND] Complete: ${successCount} success, ${failCount} failed`);
+  console.log(`[BATCH SEND] Complete: ${successCount} success, ${results.length - successCount} failed`);
   
-  return { results, successCount, failCount };
+  return { results, successCount, failCount: results.length - successCount };
 }
 
 /* =========================================================

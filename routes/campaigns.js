@@ -700,14 +700,13 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
           trackingId: generateTrackingId(),
         }));
         
-        // Use batch send with rate limiting (5 per second to stay within Resend limits)
+        // Use Resend batch API - sends up to 100 emails per request (no rate limits!)
         const batchResult = await sendBatchCampaignEmails(
           emailList,
           campaign.subject,
           wrappedHtml,
           campaignIdStr,
-          baseUrl,
-          5 // rate per second
+          baseUrl
         );
         
         console.log(`[LAUNCH BACKGROUND] Batch send complete:`, batchResult);
