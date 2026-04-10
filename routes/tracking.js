@@ -121,7 +121,7 @@ router.get("/click", async (req, res) => {
 
         await tracking.save();
 
-        console.log(`[CLICK TRacking] Updated EmailTracking record for ${email}`);
+        console.log(`[CLICK TRACKING] Updated EmailTracking record for ${email}`);
 
         if (campaignId.startsWith("tpl-")) {
           const templateCampaign = await Campaign.findOne({ name: campaignId });
@@ -163,11 +163,9 @@ router.get("/view/:campaignId/:email", async (req, res) => {
 
     console.log(`[VIEW IN BROWSER] campaignId: ${campaignId}, email: ${emailLower}`);
 
-    // Try to find the campaign/template
     let htmlContent = null;
     let subject = "Email";
 
-    // Check if it's a template-based campaign
     if (campaignId.startsWith("tpl-")) {
       const template = await CampaignTemplate.findOne({ id: campaignId.replace("tpl-", "") });
       if (template) {
@@ -176,7 +174,6 @@ router.get("/view/:campaignId/:email", async (req, res) => {
       }
     }
 
-    // If not found, check Campaign model
     if (!htmlContent) {
       const campaign = await Campaign.findById(campaignId);
       if (campaign) {
@@ -185,7 +182,6 @@ router.get("/view/:campaignId/:email", async (req, res) => {
       }
     }
 
-    // Also try finding by name
     if (!htmlContent) {
       const campaignByName = await Campaign.findOne({ name: campaignId });
       if (campaignByName) {
@@ -194,7 +190,6 @@ router.get("/view/:campaignId/:email", async (req, res) => {
       }
     }
 
-    // If still not found, return a simple message
     if (!htmlContent) {
       return res.status(404).send(`
         <!DOCTYPE html>
@@ -217,40 +212,18 @@ router.get("/view/:campaignId/:email", async (req, res) => {
       `);
     }
 
-    // Apply personalization to the HTML
+    // Apply personalization
     let personalizedHtml = htmlContent;
     const contactName = emailLower.split("@")[0];
-    
-    // Replace common personalization tokens
     personalizedHtml = personalizedHtml.replace(/\/firstname/gi, contactName);
     personalizedHtml = personalizedHtml.replace(/\/lastname/gi, "");
     personalizedHtml = personalizedHtml.replace(/\/company/gi, "");
     personalizedHtml = personalizedHtml.replace(/\/email/gi, emailLower);
 
-    // Build footer with unsubscribe link
-    const unsubscribeUrl = `${baseUrl}/api/unsubscribe/confirm/${campaignId}/${encodeURIComponent(emailLower)}`;
-    const viewUrl = `${baseUrl}/api/track/view/${campaignId}/${encodeURIComponent(emailLower)}`;
-
-    const footerHtml = `
-      <div style="background:#1a1035;padding:30px;text-align:center;margin-top:30px;">
-        <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
-          The Tech Festival Canada • Toronto, Ontario
-        </p>
-        <p style="color:rgba(255,255,255,0.4);font-size:11px;margin:10px 0 0;">
-          <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">Unsubscribe</a> | 
-          <a href="${viewUrl}" style="color:rgba(255,255,255,0.5);text-decoration:none;">View in browser</a>
-        </p>
-      </div>
-    `;
-
-    // Inject footer before closing body
-    personalizedHtml = personalizedHtml.replace(/<\/body>/i, footerHtml + "</body>");
-
-    // Add tracking pixel
+    // Add tracking pixel only — no footer injected
     const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(emailLower)}" width="1" height="1" style="display:none" />`;
     personalizedHtml = personalizedHtml.replace(/<\/body>/i, trackingPixel + "</body>");
 
-    // Wrap in full HTML if needed
     if (!personalizedHtml.includes("<html")) {
       personalizedHtml = `<!DOCTYPE html>
 <html>
@@ -285,7 +258,6 @@ router.get("/unsubscribe/:campaignId/:email", async (req, res) => {
     const emailLower = decodeURIComponent(email).toLowerCase();
     const baseUrl = process.env.FRONTEND_URL || "https://www.thetechfestival.com";
 
-    // Get campaign info for display
     let campaignName = "our emails";
     try {
       const campaign = await Campaign.findById(campaignId);
