@@ -694,10 +694,17 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
       try {
         console.log(`[LAUNCH BACKGROUND] Starting batch send for ${audience.contacts.length} recipients`);
         
-        // Prepare email list with tracking IDs
+        // Prepare email list with full contact details for personalization
         const emailList = audience.contacts.map((contact) => ({
-          email: contact.email,
-          trackingId: generateTrackingId(),
+          contact: {
+            email: contact.email,
+            name: contact.name || "",
+            firstName: contact.firstName || "",
+            lastName: contact.lastName || "",
+            company: contact.company || "",
+            title: contact.title || "",
+            location: contact.location || "",
+          },
         }));
         
         // Use Resend batch API - sends up to 100 emails per request (no rate limits!)

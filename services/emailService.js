@@ -301,22 +301,29 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
     const chunk = emails.slice(i, i + BATCH_SIZE);
     
-    const batchEmails = chunk.map(({ email }) => {
+    const batchEmails = chunk.map(({ contact }) => {
+      const email = contact.email;
+      const firstName = contact.firstName || contact.name || email.split('@')[0];
+      const lastName = contact.lastName || "";
+      const company = contact.company || "";
+      const title = contact.title || "";
+      const location = contact.location || "";
+      const fullName = contact.name || firstName;
+      
       let personalizedHtml = htmlTemplate
-        .replace(/\{\{name}}/g, email.split('@')[0])
-        .replace(/\{\{firstname}}/g, email.split('@')[0])
-        .replace(/\{\{lastname}}/g, "")
-        .replace(/\{\{company}}/g, "")
-        .replace(/\{\{title}}/g, "")
-        .replace(/\{\{location}}/g, "")
+        .replace(/\{\{name}}/g, fullName)
+        .replace(/\{\{firstname}}/g, firstName)
+        .replace(/\{\{lastname}}/g, lastName)
+        .replace(/\{\{company}}/g, company)
+        .replace(/\{\{title}}/g, title)
+        .replace(/\{\{location}}/g, location)
         .replace(/\{\{email}}/g, email)
-        // Also support /token format
-        .replace(/\/firstname/gi, email.split('@')[0])
-        .replace(/\/lastname/gi, "")
-        .replace(/\/company/gi, "")
-        .replace(/\/title/gi, "")
-        .replace(/\/location/gi, "")
-        .replace(/\/name/gi, email.split('@')[0]);
+        .replace(/\/firstname/gi, firstName)
+        .replace(/\/lastname/gi, lastName)
+        .replace(/\/company/gi, company)
+        .replace(/\/title/gi, title)
+        .replace(/\/location/gi, location)
+        .replace(/\/name/gi, fullName);
       
       const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(email)}" width="1" height="1" style="display:none" alt="" />`;
       if (personalizedHtml.includes('</body>')) {
