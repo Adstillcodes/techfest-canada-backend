@@ -10,17 +10,22 @@ import { sendResetPasswordEmail } from "../services/emailService.js";
 
 const router = express.Router();
 
-// ⚠️ raw body required for Stripe
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+// ⚠️ raw body required for Stripe - handle both Buffer and string
 router.post("/stripe", async (req, res) => {
 
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+  // Handle both Buffer (from express.raw) and string
+  const rawBody = req.body;
+  const bodyString = Buffer.isBuffer(rawBody) ? rawBody.toString('utf-8') : rawBody;
+  
   const sig = req.headers["stripe-signature"];
 
   let event;
 
   try {
     event = stripe.webhooks.constructEvent(
-      req.body,
+      bodyString,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );

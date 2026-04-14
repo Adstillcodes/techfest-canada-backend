@@ -511,37 +511,11 @@ router.get("/", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 router.post("/", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const { name, subject, audienceId, template, scheduledAt } = req.body;
-
-    if (!name || !subject || !audienceId || !template) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-
-    const campaign = new Campaign({
-      name,
-      subject,
-      audienceId,
-      template,
-      status: "draft",
-      scheduledAt: scheduledAt || null,
-      createdBy: req.user.userId,
-    });
-
-    await campaign.save();
-
-    res.json({
-      _id: campaign._id,
-      name: campaign.name,
-      subject: campaign.subject,
-      status: campaign.status,
-      stats: campaign.stats,
-      createdAt: campaign.createdAt,
-    });
-  } catch (err) {
-    console.error("Create campaign error:", err);
-    res.status(500).json({ error: "Server error" });
-  }
+  res.status(410).json({ 
+    error: "Campaigns are now managed in MailerLite. Please create and send campaigns from the MailerLite dashboard.",
+    message: "Use the MailerLite integration in the admin panel to create new campaigns.",
+    mailerliteUrl: "https://dashboard.mailerlite.com/campaigns"
+  });
 });
 
 // GET single campaign by ID
@@ -576,28 +550,11 @@ router.get("/:id", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const { name, subject, template, scheduledAt } = req.body;
-
-    const campaign = await Campaign.findById(req.params.id);
-    if (!campaign) {
-      return res.status(404).json({ error: "Campaign not found" });
-    }
-
-    if (name) campaign.name = name;
-    if (subject) campaign.subject = subject;
-    if (template !== undefined) {
-      campaign.template = template;
-      console.log(`[PUT /campaigns/:id] Saved template length: ${template ? template.length : 0}`);
-    }
-    if (scheduledAt) campaign.scheduledAt = scheduledAt;
-
-    await campaign.save();
-    
-    console.log(`[PUT /campaigns/:id] Saved template length: ${campaign.template ? campaign.template.length : 0}`);
-    console.log(`[PUT /campaigns/:id] Campaign template now: ${campaign.template ? campaign.template.substring(0, 100) : 'empty'}`);
-
-    res.json({
+  res.status(410).json({ 
+    error: "Campaign editing is now done via MailerLite. Please edit campaigns in the MailerLite dashboard.",
+    mailerliteUrl: "https://dashboard.mailerlite.com/campaigns"
+  });
+});
       _id: campaign._id,
       name: campaign.name,
       subject: campaign.subject,
@@ -611,6 +568,8 @@ router.put("/:id", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
+  const Campaign = (await import("../models/Campaign.js")).default;
+  const EmailTracking = (await import("../models/EmailTracking.js")).default;
   try {
     await Campaign.findByIdAndDelete(req.params.id);
     await EmailTracking.deleteMany({ campaignId: req.params.id });
@@ -622,6 +581,10 @@ router.delete("/:id", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => {
+  res.status(410).json({ 
+    error: "Campaign sending is now done via MailerLite. Please send campaigns from the MailerLite dashboard.",
+    mailerliteUrl: "https://dashboard.mailerlite.com/campaigns"
+  });
   try {
     const campaign = await Campaign.findById(req.params.id).populate("audienceId");
     if (!campaign) {
@@ -738,32 +701,10 @@ router.post("/:id/launch", authMiddleware, adminMiddleware, async (req, res) => 
 });
 
 router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const { email } = req.body;
-    const campaign = await Campaign.findById(req.params.id);
-
-    if (!campaign) {
-      return res.status(404).json({ error: "Campaign not found" });
-    }
-
-    const baseUrl = process.env.API_URL || "https://techfest-canada-backend.onrender.com";
-
-    // Validate and wrap template like production
-    const wrappedHtml = wrapEmailHtml(campaign.template);
-    if (!wrappedHtml) {
-      return res.status(400).json({ error: "Email template is empty. Please add content and save the template before sending test." });
-    }
-    console.log(`[TEST EMAIL] After wrap, HTML length: ${wrappedHtml.length}`);
-
-    // Apply personalization tokens for test email
-    const personalizedHtml = wrappedHtml
-      .replace(/\{\{name\}\}/g, email.split("@")[0])
-      .replace(/\{\{email\}\}/g, email)
-      .replace(/\/firstname/gi, "Test")
-      .replace(/\/lastname/gi, "User")
-      .replace(/\/company/gi, "Test Company")
-      .replace(/\/title/gi, "CEO")
-      .replace(/\/location/gi, "Toronto");
+  res.status(410).json({ 
+    error: "Test emails are now sent via MailerLite. Please use the MailerLite dashboard to test campaigns.",
+    mailerliteUrl: "https://dashboard.mailerlite.com/campaigns"
+  });
 
     console.log(`[TEST EMAIL] Personalized HTML sample:`, personalizedHtml.substring(0, 300));
 
@@ -819,38 +760,11 @@ router.post("/:id/test", authMiddleware, adminMiddleware, async (req, res) => {
 });
 
 router.get("/:id/tracking", authMiddleware, adminMiddleware, async (req, res) => {
-  try {
-    const campaign = await Campaign.findById(req.params.id);
-    if (!campaign) {
-      return res.status(404).json({ error: "Campaign not found" });
-    }
-
-    const { page = 1, limit = 50 } = req.query;
-    const pageNum = parseInt(page) || 1;
-    const limitNum = parseInt(limit) || 50;
-    const skip = (pageNum - 1) * limitNum;
-
-    // Get total count for pagination
-    const totalRecords = await EmailTracking.countDocuments({ campaignId: req.params.id });
-    const totalPages = Math.ceil(totalRecords / limitNum);
-
-    // Fetch paginated tracking data
-    const trackingData = await EmailTracking.find({ campaignId: req.params.id })
-      .sort({ lastOpenAt: -1, lastClickAt: -1 })
-      .skip(skip)
-      .limit(limitNum);
-
-    const recipients = trackingData.map((t) => ({
-      email: t.email,
-      status: t.status,
-      opened: t.opens.length > 0,
-      clicked: t.clicks.length > 0,
-      lastActivity: t.lastOpenAt || t.lastClickAt || null,
-    }));
-
-    const timeline = [];
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  res.status(410).json({ 
+    error: "Campaign tracking is now available in MailerLite dashboard.",
+    message: "Please view campaign statistics in MailerLite.",
+    mailerliteUrl: "https://dashboard.mailerlite.com/campaigns"
+  });
 
     const trackingByDate = {};
     trackingData.forEach((t) => {

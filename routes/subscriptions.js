@@ -3,6 +3,7 @@ import Subscription from "../models/Subscription.js";
 import Audience from "../models/Audience.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 import { sendUnsubscribeConfirmationEmail, sendWelcomeEmail } from "../services/emailService.js";
+import { addSubscriber, removeSubscriber, syncSubscriberToMailerLite } from "../services/mailerLiteService.js";
 
 const router = express.Router();
 
@@ -73,10 +74,10 @@ router.post("/subscribe", async (req, res) => {
     console.log("[SUBSCRIBE] Added to audience");
     
     try {
-      await sendWelcomeEmail(emailLower, "");
-      console.log("[SUBSCRIBE] Welcome email sent");
-    } catch (emailErr) {
-      console.error("[SUBSCRIBE] Welcome email failed:", emailErr);
+      const mailerLiteResult = await addSubscriber(emailLower, "", source);
+      console.log("[SUBSCRIBE] MailerLite sync:", mailerLiteResult.success ? 'success' : 'failed');
+    } catch (mlErr) {
+      console.error("[SUBSCRIBE] MailerLite sync error:", mlErr.message);
     }
 
     res.status(201).json({ message: "Subscribed successfully" });
@@ -105,6 +106,13 @@ router.post("/unsubscribe", async (req, res) => {
 
     subscription.subscribed = false;
     await subscription.save();
+
+    try {
+      await removeSubscriber(email.toLowerCase());
+      console.log("[UNSUBSCRIBE] MailerLite sync: success");
+    } catch (mlErr) {
+      console.error("[UNSUBSCRIBE] MailerLite sync error:", mlErr.message);
+    }
 
     res.json({ message: "Unsubscribed successfully" });
   } catch (err) {
@@ -207,7 +215,15 @@ router.post("/unsubscribe/confirm/:campaignId/:email", async (req, res) => {
       console.log(`[UNSUBSCRIBE] Updated subscription: ${emailLower}`);
     }
 
-    // 3. Send confirmation email
+    // 3. Sync with MailerLite
+    try {
+      await removeSubscriber(emailLower);
+      console.log(`[UNSUBSCRIBE] MailerLite unsubscribed: ${emailLower}`);
+    } catch (mlErr) {
+      console.error(`[UNSUBSCRIBE] MailerLite error:`, mlErr.message);
+    }
+
+    // 4. Send confirmation email
     try {
       await sendUnsubscribeConfirmationEmail(emailLower);
       console.log(`[UNSUBSCRIBE] Sent confirmation email to: ${emailLower}`);
