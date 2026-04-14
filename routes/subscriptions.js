@@ -3,7 +3,6 @@ import Subscription from "../models/Subscription.js";
 import Audience from "../models/Audience.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 import { sendUnsubscribeConfirmationEmail, sendWelcomeEmail } from "../services/emailService.js";
-import { addSubscriber, removeSubscriber, syncSubscriberToMailerLite } from "../services/mailerLiteService.js";
 
 const router = express.Router();
 
@@ -73,13 +72,8 @@ router.post("/subscribe", async (req, res) => {
     await addToNewsletterAudience(emailLower);
     console.log("[SUBSCRIBE] Added to audience");
     
-    try {
-      const mailerLiteResult = await addSubscriber(emailLower, "", source);
-      console.log("[SUBSCRIBE] MailerLite sync:", mailerLiteResult.success ? 'success' : 'failed');
-    } catch (mlErr) {
-      console.error("[SUBSCRIBE] MailerLite sync error:", mlErr.message);
-    }
-
+    // MailerLite sync removed - using Resend for now
+    
     res.status(201).json({ message: "Subscribed successfully" });
   } catch (err) {
     if (err.code === 11000) {
