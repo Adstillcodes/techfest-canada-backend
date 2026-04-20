@@ -368,9 +368,19 @@ router.get(
 
       const users = await User.find({
         tickets: { $exists: true, $not: { $size: 0 } },
-      }).select("name email tickets");
+      }).select("name email tickets").lean();
 
-      res.json(users);
+      const attendees = users.flatMap(user => 
+        user.tickets.map(ticket => ({
+          name: user.name,
+          email: user.email,
+          ticketId: ticket.ticketId,
+          ticketType: ticket.type,
+          purchaseDate: ticket.purchaseDate
+        }))
+      );
+
+      res.json(attendees);
 
     } catch (err) {
 
