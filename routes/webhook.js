@@ -17,19 +17,31 @@ router.post("/stripe", async (req, res) => {
 
   // Handle raw body for Stripe webhook signature verification
   // Must get exact raw bytes - any transformation causes signature mismatch
-  // Use req.rawBody from verify middleware when available
-  let rawBody = req.rawBody || req.body;
-
-  if (Buffer.isBuffer(rawBody)) {
-    rawBody = rawBody.toString('utf-8');
-  } else if (typeof rawBody === 'object' && rawBody !== null) {
+  const bodyData = req.rawBody || req.body;
+  
+  let bodyString;
+  if (Buffer.isBuffer(bodyData)) {
+    bodyString = bodyData.toString('utf-8');
+  } else if (typeof bodyData === 'string') {
+    bodyString = bodyData;
+  } else if (typeof bodyData === 'object' && bodyData !== null) {
+    // This shouldn't happen with our custom middleware but handle gracefully
     console.error("❌ Body was parsed as object - cannot verify signature");
     return res.status(400).send("Webhook Error: Invalid body format");
+  } else {
+    console.error("❌ No body received");
+    return res.status(400).send("Webhook Error: No body received");
   }
 
-  const bodyString = rawBody;
+  console.log("📥 Raw body length:", bodyString.length);
   
   const sig = req.headers["stripe-signature"];
+  console.log("🔐 Signature header present:", !!sig);
+
+  if (!sig) {
+    console.error("❌ No stripe-signature header found");
+    return res.status(400).send("Webhook Error: No signature header");
+  }
 
   let event;
 
@@ -39,6 +51,7 @@ router.post("/stripe", async (req, res) => {
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
+    console.log("✅ Webhook signature verified");
   } catch (err) {
     console.error("❌ Webhook signature failed:", err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);

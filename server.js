@@ -51,16 +51,17 @@ app.use(cors({
 }));
 /* ==========================================
    STRIPE WEBHOOK (RAW BODY REQUIRED)
-   IMPORTANT: Must preserve exact raw body for Stripe signature
+   Custom middleware to capture exact raw bytes for Stripe signature
 ========================================== */
 
-app.use(
-  "/api/webhook",
-  express.raw({ type: "application/json", verify: (req, res, buf) => {
-    req.rawBody = buf;
-  } }),
-  webhookRoutes
-);
+app.use("/api/webhook", (req, res, next) => {
+  const chunks = [];
+  req.on("data", (chunk) => chunks.push(chunk));
+  req.on("end", () => {
+    req.rawBody = Buffer.concat(chunks);
+    next();
+  });
+}, webhookRoutes);
 
 /* ==========================================
    JSON PARSER
