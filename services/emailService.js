@@ -59,13 +59,13 @@ async function generateTicketPDF({ name, ticketId, tier }) {
 
     /* ================= QR CODE ================= */
 
-  if (!ticketId) {
-  throw new Error("Ticket ID missing when generating QR code");
-}
+    if (!ticketId) {
+      throw new Error("Ticket ID missing when generating QR code");
+    }
 
-const qrData = await QRCode.toDataURL(String(ticketId));
-     
-     const base64 = qrData.replace(/^data:image\/png;base64,/, "");
+    const qrData = await QRCode.toDataURL(String(ticketId));
+
+    const base64 = qrData.replace(/^data:image\/png;base64,/, "");
 
     const img = Buffer.from(base64, "base64");
 
@@ -180,21 +180,80 @@ export async function sendTicketEmail({ email, name, ticketId, tier }) {
 
       to: email,
 
-      subject: "Your TechFest Canada Pass 🎟",
+      subject: `Your TTFC ${tier} Pass is confirmed 🎟`,
 
       html: `
-      <h2>Your TechFest Canada Pass</h2>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#f4f0ff;font-family:'Helvetica Neue',Arial,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:white;border-radius:14px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.08);">
 
-      <p>Hello ${name},</p>
+      <!-- HEADER -->
+      <div style="background:linear-gradient(135deg,#7a3fd1,#f5a623);padding:48px 30px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:28px;letter-spacing:0.5px;">The Tech Festival Canada</h1>
+        <p style="color:rgba(255,255,255,0.92);margin:12px 0 0;font-size:15px;letter-spacing:2px;text-transform:uppercase;">You're In</p>
+      </div>
 
-      <p>Your ticket purchase was successful.</p>
+      <!-- BODY -->
+      <div style="padding:44px 36px;">
+        <div style="text-align:center;font-size:46px;margin-bottom:16px;">🎟</div>
 
-      <p><strong>Ticket ID:</strong> ${ticketId}</p>
-      <p><strong>Pass Type:</strong> ${tier}</p>
+        <h2 style="color:#1a1035;margin:0 0 16px;text-align:center;font-size:24px;">Hey ${name}, you're all set!</h2>
 
-      <p>Your ticket PDF is attached to this email.</p>
+        <p style="color:#555;font-size:16px;line-height:1.65;text-align:center;margin:0 0 28px;">
+          Thank you for purchasing your <strong>TTFC ${tier} Pass</strong>. We're thrilled to have you joining us this October — it's going to be a special couple of days.
+        </p>
 
-      <p>We look forward to seeing you in Toronto!</p>
+        <!-- EVENT DETAILS CARD -->
+        <div style="background:#f8f5ff;border:1px solid #ece4ff;border-radius:12px;padding:24px;margin:0 0 28px;">
+          <p style="margin:0 0 8px;color:#7a3fd1;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:bold;">Event Dates</p>
+          <p style="margin:0 0 18px;color:#1a1035;font-size:20px;font-weight:bold;">26 & 27 October 2026</p>
+
+          <p style="margin:0 0 6px;color:#7a3fd1;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:bold;">Your Pass</p>
+          <p style="margin:0 0 4px;color:#333;font-size:15px;"><strong>Type:</strong> ${tier}</p>
+          <p style="margin:0;color:#333;font-size:15px;"><strong>Ticket ID:</strong> ${ticketId}</p>
+        </div>
+
+        <p style="color:#555;font-size:15px;line-height:1.65;text-align:center;margin:0 0 28px;">
+          Your official pass is attached to this email as a PDF — keep it handy, you'll need the QR code at check-in.
+        </p>
+
+        <!-- CTA BUTTON -->
+        <div style="text-align:center;margin:0 0 32px;">
+          <a href="https://www.thetechfestival.com" style="display:inline-block;background:linear-gradient(135deg,#7a3fd1,#f5a623);color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;letter-spacing:0.3px;">
+            Learn More at thetechfestival.com
+          </a>
+        </div>
+
+        <!-- DIVIDER -->
+        <div style="border-top:1px solid #eee;margin:0 0 24px;"></div>
+
+        <!-- CONTACT -->
+        <p style="color:#888;font-size:14px;line-height:1.6;text-align:center;margin:0;">
+          Questions? Reach out to us at<br>
+          <a href="mailto:marcom@thetechfestival.com" style="color:#7a3fd1;text-decoration:none;font-weight:bold;">marcom@thetechfestival.com</a>
+        </p>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="background:#1a1035;padding:24px;text-align:center;">
+        <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:0 0 6px;">
+          See you in Toronto 👋
+        </p>
+        <p style="color:rgba(255,255,255,0.45);font-size:11px;margin:0;">
+          The Tech Festival Canada • Toronto, Ontario
+        </p>
+      </div>
+
+    </div>
+  </div>
+</body>
+</html>
       `,
 
       attachments: [
@@ -236,13 +295,13 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     console.log(`[EMAIL SERVICE] HTML contains </title>: ${html.includes('</title>')}`);
     console.log(`[EMAIL SERVICE] HTML contains <table: ${html.includes('<table')}`);
     console.log(`[EMAIL SERVICE] HTML contains </table>: ${html.includes('</table>')}`);
-    
+
     // Validate HTML before sending
     if (!html || typeof html !== 'string') {
       console.error(`[EMAIL SERVICE] ERROR: HTML is invalid - type: ${typeof html}, value: ${html}`);
       return { success: false, error: 'Invalid HTML' };
     }
-    
+
     // Check for basic HTML structure
     if (!html.includes('<html') || !html.includes('</html>')) {
       console.error(`[EMAIL SERVICE] WARNING: HTML may be malformed - missing html tags`);
@@ -250,7 +309,7 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     if (!html.includes('<body') || !html.includes('</body>')) {
       console.error(`[EMAIL SERVICE] WARNING: HTML may be malformed - missing body tags`);
     }
-    
+
     // Log the complete payload as JSON for inspection
     const emailPayload = {
       from: "TechFest Canada <campaigns@thetechfestival.com>",
@@ -258,7 +317,7 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
       subject: subject,
       html: html,
     };
-    
+
     console.log(`[EMAIL SERVICE] Full payload JSON (truncated):`);
     console.log(`  from: ${emailPayload.from}`);
     console.log(`  to: ${emailPayload.to}`);
@@ -266,17 +325,17 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
     console.log(`  html length: ${emailPayload.html.length}`);
     console.log(`  html starts with: ${emailPayload.html.substring(0, 50)}`);
     console.log(`  html ends with: ${emailPayload.html.substring(emailPayload.html.length - 50)}`);
-    
+
     const result = await resend.emails.send(emailPayload);
 
     console.log(`[EMAIL SERVICE] Resend result:`, result);
     console.log(`[EMAIL SERVICE] ===== END SEND =====`);
-    
+
     if (result.error) {
       console.error(`[EMAIL SERVICE] Resend error:`, result.error);
       return { success: false, error: result.error };
     }
-    
+
     return { success: true, result };
   } catch (err) {
     console.error("[EMAIL SERVICE] ===== ERROR =====");
@@ -295,12 +354,12 @@ export async function sendCampaignEmail({ to, subject, html, campaignId, recipie
 export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, campaignId, baseUrl) {
   const BATCH_SIZE = 100;
   const results = [];
-  
+
   console.log(`[BATCH SEND] Starting batch send: ${emails.length} emails using Resend batch API`);
-  
+
   for (let i = 0; i < emails.length; i += BATCH_SIZE) {
     const chunk = emails.slice(i, i + BATCH_SIZE);
-    
+
     const batchEmails = chunk.map(({ contact }) => {
       const email = contact.email;
       const firstName = contact.firstName || contact.name || email.split('@')[0];
@@ -309,7 +368,7 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
       const title = contact.title || "";
       const location = contact.location || "";
       const fullName = contact.name || firstName;
-      
+
       let personalizedHtml = htmlTemplate
         .replace(/\{\{name}}/g, fullName)
         .replace(/\{\{firstname}}/g, firstName)
@@ -324,21 +383,21 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
         .replace(/\/title/gi, title)
         .replace(/\/location/gi, location)
         .replace(/\/name/gi, fullName);
-      
+
       const trackingPixel = `<img src="${baseUrl}/api/track/open/${campaignId}/${encodeURIComponent(email)}" width="1" height="1" style="display:none" alt="" />`;
       if (personalizedHtml.includes('</body>')) {
         personalizedHtml = personalizedHtml.replace('</body>', trackingPixel + '</body>');
       } else if (personalizedHtml.includes('</html>')) {
         personalizedHtml = personalizedHtml.replace('</html>', trackingPixel + '</html>');
       }
-      
+
       const footer = generateCampaignFooter(baseUrl, campaignId, email);
       if (personalizedHtml.includes('</body>')) {
         personalizedHtml = personalizedHtml.replace('</body>', footer + '</body>');
       } else {
         personalizedHtml += footer;
       }
-      
+
       return {
         from: "TechFest Canada <campaigns@thetechfestival.com>",
         to: [email],
@@ -346,10 +405,10 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
         html: personalizedHtml,
       };
     });
-    
+
     try {
       const result = await resend.batch.send(batchEmails);
-      
+
       if (result.error) {
         console.error(`[BATCH SEND] Batch error:`, result.error);
         chunk.forEach(({ email }) => {
@@ -368,14 +427,14 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
         results.push({ email, success: false, error: err.message });
       });
     }
-    
+
     const progress = Math.min(i + BATCH_SIZE, emails.length);
     console.log(`[BATCH SEND] Progress: ${progress}/${emails.length}`);
   }
-  
+
   const successCount = results.filter(r => r.success).length;
   console.log(`[BATCH SEND] Complete: ${successCount} success, ${results.length - successCount} failed`);
-  
+
   return { results, successCount, failCount: results.length - successCount };
 }
 
@@ -386,7 +445,7 @@ export async function sendBatchCampaignEmails(emails, subject, htmlTemplate, cam
 
 export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl) {
   if (!html) return html;
-  
+
   try {
     const trackedHtml = html.replace(
       /href=["'](https?:\/\/[^"']+)["']/gi,
@@ -396,7 +455,7 @@ export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl)
         return `href="${trackingUrl}"`;
       }
     );
-      return trackedHtml;
+    return trackedHtml;
   } catch (err) {
     console.error("Error in wrapLinksWithTracking:", err);
     return html;
@@ -410,7 +469,7 @@ export function wrapLinksWithTracking(html, campaignId, recipientEmail, baseUrl)
 export async function sendUnsubscribeConfirmationEmail(email) {
   try {
     const baseUrl = process.env.FRONTEND_URL || "https://www.thetechfestival.com";
-    
+
     await resend.emails.send({
       from: "TechFest Canada <campaigns@thetechfestival.com>",
       to: email,
@@ -429,7 +488,7 @@ export async function sendUnsubscribeConfirmationEmail(email) {
         <h1 style="color:white;margin:0;font-size:24px;">The Tech Festival Canada</h1>
         <p style="color:rgba(255,255,255,0.9);margin:10px 0 0;font-size:14px;">Unsubscribe Confirmation</p>
       </div>
-      
+
       <div style="padding:40px 30px;text-align:center;">
         <div style="font-size:48px;margin-bottom:20px;">✓</div>
         <h2 style="color:#333;margin:0 0 20px;">You've been unsubscribed</h2>
@@ -439,14 +498,14 @@ export async function sendUnsubscribeConfirmationEmail(email) {
         <p style="color:#666;font-size:16px;line-height:1.6;">
           We're sorry to see you go! If you unsubscribed by mistake, you can always re-subscribe on our website.
         </p>
-        
+
         <div style="margin-top:30px;">
           <a href="${baseUrl}" style="display:inline-block;background:linear-gradient(135deg,#7a3fd1,#f5a623);color:white;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold;">
             Return to TechFest Canada
           </a>
         </div>
       </div>
-      
+
       <div style="background:#1a1035;padding:30px;text-align:center;">
         <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
           The Tech Festival Canada • Toronto, Ontario
@@ -473,7 +532,7 @@ export async function sendUnsubscribeConfirmationEmail(email) {
 export function generateCampaignFooter(baseUrl, campaignId, email) {
   const unsubscribeUrl = `${baseUrl}/api/track/unsubscribe/${campaignId}/${encodeURIComponent(email)}`;
   const viewBrowserUrl = `${baseUrl}/api/track/view/${campaignId}/${encodeURIComponent(email)}`;
-  
+
   return `
     <div style="background:#1a1035;padding:20px;text-align:center;margin-top:20px;border-radius:0 0 12px 12px;">
       <p style="color:rgba(255,255,255,0.6);font-size:12px;margin:0;">
