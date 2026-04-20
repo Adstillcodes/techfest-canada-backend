@@ -51,11 +51,14 @@ app.use(cors({
 }));
 /* ==========================================
    STRIPE WEBHOOK (RAW BODY REQUIRED)
+   IMPORTANT: Must preserve exact raw body for Stripe signature
 ========================================== */
 
 app.use(
   "/api/webhook",
-  express.raw({ type: "application/json" }),
+  express.raw({ type: "application/json", verify: (req, res, buf) => {
+    req.rawBody = buf;
+  } }),
   webhookRoutes
 );
 

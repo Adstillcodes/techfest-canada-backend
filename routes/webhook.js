@@ -12,12 +12,22 @@ const router = express.Router();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ⚠️ raw body required for Stripe - handle both Buffer and string
+// Stripe webhook endpoint - requires raw body for signature verification
 router.post("/stripe", async (req, res) => {
 
-  // Handle both Buffer (from express.raw) and string
-  const rawBody = req.body;
-  const bodyString = Buffer.isBuffer(rawBody) ? rawBody.toString('utf-8') : rawBody;
+  // Handle raw body for Stripe webhook signature verification
+  // Must get exact raw bytes - any transformation causes signature mismatch
+  // Use req.rawBody from verify middleware when available
+  let rawBody = req.rawBody || req.body;
+
+  if (Buffer.isBuffer(rawBody)) {
+    rawBody = rawBody.toString('utf-8');
+  } else if (typeof rawBody === 'object' && rawBody !== null) {
+    console.error("❌ Body was parsed as object - cannot verify signature");
+    return res.status(400).send("Webhook Error: Invalid body format");
+  }
+
+  const bodyString = rawBody;
   
   const sig = req.headers["stripe-signature"];
 
