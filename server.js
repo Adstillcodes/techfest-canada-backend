@@ -51,13 +51,17 @@ app.use(cors({
 }));
 /* ==========================================
    STRIPE WEBHOOK (RAW BODY REQUIRED)
-   Per Stripe docs: must be BEFORE express.json()
+   IMPORTANT: Must preserve exact raw body for Stripe signature
 ========================================== */
 
-app.use("/api/webhook", express.raw({ type: "application/json" }), webhookRoutes);
+app.use(
+  "/api/webhook",
+  express.raw({ type: "application/json" }),
+  webhookRoutes
+);
 
 /* ==========================================
-   JSON PARSER (for all other routes)
+   JSON PARSER
 ========================================== */
 
 app.use(express.json());
