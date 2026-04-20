@@ -51,20 +51,13 @@ app.use(cors({
 }));
 /* ==========================================
    STRIPE WEBHOOK (RAW BODY REQUIRED)
-   Custom middleware to capture exact raw bytes for Stripe signature
+   Per Stripe docs: must be BEFORE express.json()
 ========================================== */
 
-app.use("/api/webhook", (req, res, next) => {
-  const chunks = [];
-  req.on("data", (chunk) => chunks.push(chunk));
-  req.on("end", () => {
-    req.rawBody = Buffer.concat(chunks);
-    next();
-  });
-}, webhookRoutes);
+app.use("/api/webhook", express.raw({ type: "application/json" }), webhookRoutes);
 
 /* ==========================================
-   JSON PARSER
+   JSON PARSER (for all other routes)
 ========================================== */
 
 app.use(express.json());

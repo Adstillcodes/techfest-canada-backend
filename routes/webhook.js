@@ -13,19 +13,31 @@ const router = express.Router();
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // Stripe webhook endpoint - requires raw body for signature verification
-router.post("/stripe", async (req, res) => {
+router.post("/", async (req, res) => {
 
-  const rawBody = req.rawBody;
+  // express.raw() gives us a Buffer in req.body
+  let rawBody = req.body;
 
-  if (!rawBody || rawBody.length === 0) {
-    console.error("❌ No raw body received");
-    return res.status(400).send("Webhook Error: No body received");
+  // Ensure we have a Buffer
+  if (!Buffer.isBuffer(rawBody)) {
+    console.error("❌ Body is not a Buffer, type:", typeof rawBody, rawBody);
+    return res.status(400).send("Webhook Error: Invalid body type");
   }
 
+  if (rawBody.length === 0) {
+    console.error("❌ Empty raw body received");
+    return res.status(400).send("Webhook Error: Empty body received");
+  }
+
+  // Create a fresh Buffer and convert to string to ensure clean UTF-8
+  const bodyString = Buffer.from(rawBody).toString('utf-8');
+
   console.log("📥 Raw body length:", rawBody.length);
+  console.log("📄 Body preview:", bodyString.substring(0, 100));
 
   const sig = req.headers["stripe-signature"];
   console.log("🔐 Signature header present:", !!sig);
+  console.log("🔐 Signature value:", sig);
 
   if (!sig) {
     console.error("❌ No stripe-signature header found");
@@ -35,8 +47,9 @@ router.post("/stripe", async (req, res) => {
   let event;
 
   try {
+    // Use STRING version as per Stripe's official example
     event = stripe.webhooks.constructEvent(
-      rawBody,
+      bodyString,
       sig,
       process.env.STRIPE_WEBHOOK_SECRET
     );
