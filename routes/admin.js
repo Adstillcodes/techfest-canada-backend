@@ -529,18 +529,6 @@ router.post(
           const tier = session.metadata?.tier;
           if (!tier) continue;
           
-          const userId = session.metadata?.userId;
-          
-          // Skip if logged-in user (already in User collection)
-          if (userId && userId !== "guest") {
-            skipped.push({
-              reason: "logged_in_user",
-              email: session.customer_details?.email,
-              tier
-            });
-            continue;
-          }
-          
           const email = session.customer_details?.email;
           const name = session.customer_details?.name || "Guest";
           
@@ -553,7 +541,7 @@ router.post(
             continue;
           }
           
-          // Always import from Stripe (no duplicate check - creates new attendee for each purchase)
+          // Always import from Stripe - import all ticket purchases (both guests and logged-in users)
           const ticketId = crypto.randomBytes(6).toString("hex");
           
           const attendee = new Attendee({
