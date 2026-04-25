@@ -16,6 +16,9 @@ const ticketSchema = new mongoose.Schema({
   checkedIn: {
     type: Boolean,
     default: false
+  },
+  checkedInAt: {
+    type: Date
   }
 });
 

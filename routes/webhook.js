@@ -1,6 +1,7 @@
 import express from "express";
 import Stripe from "stripe";
 import User from "../models/User.js";
+import Attendee from "../models/Attendee.js";
 import TicketInventory from "../models/TicketInventory.js";
 import crypto from "crypto";
 
@@ -106,6 +107,19 @@ router.post("/stripe", async (req, res) => {
 
           }
 
+        } else {
+          // Guest purchase - create Attendee record
+          const attendee = new Attendee({
+            name: name || "Guest",
+            email: email,
+            ticketId,
+            ticketType: tier,
+            purchaseDate: new Date()
+          });
+
+          await attendee.save();
+
+          console.log("🎟 Guest attendee created:", email);
         }
 
         // ================= SEND TICKET EMAIL =================

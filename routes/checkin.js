@@ -1,5 +1,6 @@
 import express from "express";
 import User from "../models/User.js";
+import Attendee from "../models/Attendee.js";
 
 const router = express.Router();
 
@@ -14,40 +15,65 @@ router.post("/scan", async (req, res) => {
       });
     }
 
-    // 🔍 find ticket
+    // First check in User collection
     const user = await User.findOne({
       "tickets.ticketId": ticketId,
     });
 
-    if (!user) {
+    if (user) {
+      const ticket = user.tickets.find(
+        (t) => t.ticketId === ticketId
+      );
+
+      // already used
+      if (ticket.checkedIn) {
+        return res.json({
+          status: "already_checked_in",
+          name: user.name,
+          time: ticket.checkedInAt,
+        });
+      }
+
+      // mark as checked in
+      ticket.checkedIn = true;
+      ticket.checkedInAt = new Date();
+      await user.save();
+
+      res.json({
+        status: "success",
+        name: user.name,
+        ticketType: ticket.type,
+      });
+      
+      return;
+    }
+
+    // Check in Attendee collection (guests)
+    const attendee = await Attendee.findOne({ ticketId });
+
+    if (!attendee) {
       return res.status(404).json({
         status: "invalid",
         message: "Ticket not found",
       });
     }
 
-    const ticket = user.tickets.find(
-      (t) => t.ticketId === ticketId
-    );
-
-    // 🚫 already used
-    if (ticket.checkedIn) {
+    if (attendee.checkedIn) {
       return res.json({
         status: "already_checked_in",
-        name: user.name,
-        time: ticket.checkedInAt,
+        name: attendee.name,
+        time: attendee.checkedInAt,
       });
     }
 
-    // ✅ mark as checked in
-    ticket.checkedIn = true;
-    ticket.checkedInAt = new Date();
-    await user.save();
+    attendee.checkedIn = true;
+    attendee.checkedInAt = new Date();
+    await attendee.save();
 
     res.json({
       status: "success",
-      name: user.name,
-      ticketType: ticket.type,
+      name: attendee.name,
+      ticketType: attendee.ticketType,
     });
   } catch (err) {
     console.error("CHECK-IN ERROR:", err);

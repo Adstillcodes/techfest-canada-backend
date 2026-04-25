@@ -1,11 +1,21 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
+import Stripe from "stripe";
+import crypto from "crypto";
 
 import User from "../models/User.js";
+import Attendee from "../models/Attendee.js";
 import TicketInventory from "../models/TicketInventory.js";
 
 const router = express.Router();
+
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error("STRIPE_SECRET_KEY missing in env");
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY);
+}
 
 /* =========================================================
    🔐 AUTH MIDDLEWARE
@@ -355,8 +365,8 @@ router.put(
 );
 
 /* =========================================================
-   👥 GET ATTENDEES
-   GET /api/admin/attendees
+    👥 GET ATTENDEES
+    GET /api/admin/attendees
 ========================================================= */
 
 router.get(
@@ -366,21 +376,30 @@ router.get(
   async (req, res) => {
     try {
 
+      // Get attendees from logged-in users
       const users = await User.find({
         tickets: { $exists: true, $not: { $size: 0 } },
       }).select("name email tickets").lean();
 
-      const attendees = users.flatMap(user => 
+      const userAttendees = users.flatMap(user => 
         user.tickets.map(ticket => ({
           name: user.name,
           email: user.email,
           ticketId: ticket.ticketId,
           ticketType: ticket.type,
-          purchaseDate: ticket.purchaseDate
+          purchaseDate: ticket.purchaseDate,
+          checkedIn: ticket.checkedIn
         }))
       );
 
-      res.json(attendees);
+      // Get attendees from guest purchases
+      const guestAttendees = await Attendee.find({}).select("name email ticketId ticketType purchaseDate checkedIn").lean();
+
+      // Combine both and sort by purchase date (newest first)
+      const allAttendees = [...userAttendees, ...guestAttendees]
+        .sort((a, b) => new Date(b.purchaseDate) - new Date(a.purchaseDate));
+
+      res.json(allAttendees);
 
     } catch (err) {
 
@@ -392,8 +411,8 @@ router.get(
 );
 
 /* =========================================================
-   📷 QR CHECK-IN
-   POST /api/admin/checkin
+    📷 QR CHECK-IN
+    POST /api/admin/checkin
 ========================================================= */
 
 router.post(
@@ -409,38 +428,183 @@ router.post(
         return res.status(400).json({ error: "Ticket ID required" });
       }
 
+      // First check in User collection
       const user = await User.findOne({
         "tickets.ticketId": ticketId,
       });
 
-      if (!user) {
+      if (user) {
+        const ticket = user.tickets.find(
+          (t) => t.ticketId === ticketId
+        );
+
+        if (ticket.checkedIn) {
+          return res.status(400).json({
+            error: "Ticket already checked in",
+          });
+        }
+
+        ticket.checkedIn = true;
+        await user.save();
+
+        res.json({
+          success: true,
+          name: user.name,
+          ticketId: ticket.ticketId,
+          type: ticket.type,
+        });
+        
+        return;
+      }
+
+      // Check in Attendee collection (guests)
+      const attendee = await Attendee.findOne({ ticketId });
+
+      if (!attendee) {
         return res.status(404).json({ error: "Ticket not found" });
       }
 
-      const ticket = user.tickets.find(
-        (t) => t.ticketId === ticketId
-      );
-
-      if (ticket.checkedIn) {
+      if (attendee.checkedIn) {
         return res.status(400).json({
           error: "Ticket already checked in",
         });
       }
 
-      ticket.checkedIn = true;
-      await user.save();
+      attendee.checkedIn = true;
+      await attendee.save();
 
       res.json({
         success: true,
-        name: user.name,
-        ticketId: ticket.ticketId,
-        type: ticket.type,
+        name: attendee.name,
+        ticketId: attendee.ticketId,
+        type: attendee.ticketType,
       });
 
     } catch (err) {
 
-      console.error("Check-in error:", err);
+console.error("Check-in error:", err);
       res.status(500).json({ error: "Server error" });
+
+    }
+  }
+);
+
+/* =========================================================
+    🔄 SYNC GUESTS FROM STRIPE
+    POST /api/admin/sync-guests-from-stripe
+========================================================= */
+
+router.post(
+  "/sync-guests-from-stripe",
+  authMiddleware,
+  adminMiddleware,
+  async (req, res) => {
+    try {
+      const stripe = getStripe();
+      
+      const syncedAttendees = [];
+      const skipped = [];
+      
+      // Fetch all completed checkout sessions (pagination: 100 at a time)
+      let hasMore = true;
+      let lastSessionId = null;
+      
+      while (hasMore) {
+        const params = {
+          limit: 100,
+          status: "complete",
+        };
+        
+        if (lastSessionId) {
+          params.starting_after = lastSessionId;
+        }
+        
+        const sessions = await stripe.checkout.sessions.list(params);
+        
+        for (const session of sessions.data) {
+          // Skip if not a ticket purchase
+          const purchaseType = session.metadata?.type;
+          if (purchaseType === "booth") continue;
+          
+          const tier = session.metadata?.tier;
+          if (!tier) continue;
+          
+          const userId = session.metadata?.userId;
+          
+          // Skip if logged-in user (already in User collection)
+          if (userId && userId !== "guest") {
+            skipped.push({
+              reason: "logged_in_user",
+              email: session.customer_details?.email,
+              tier
+            });
+            continue;
+          }
+          
+          const email = session.customer_details?.email;
+          const name = session.customer_details?.name || "Guest";
+          
+          if (!email) {
+            skipped.push({
+              reason: "no_email",
+              sessionId: session.id,
+              tier
+            });
+            continue;
+          }
+          
+          // Check if attendee already exists
+          const existingAttendee = await Attendee.findOne({ email, ticketType: tier });
+          
+          if (existingAttendee) {
+            skipped.push({
+              reason: "already_exists",
+              email,
+              tier
+            });
+            continue;
+          }
+          
+          // Create new attendee
+          const ticketId = crypto.randomBytes(6).toString("hex");
+          
+          const attendee = new Attendee({
+            name,
+            email,
+            ticketId,
+            ticketType: tier,
+            purchaseDate: new Date(session.created * 1000)
+          });
+          
+          await attendee.save();
+          
+          syncedAttendees.push({
+            name,
+            email,
+            ticketId,
+            ticketType: tier,
+            purchaseDate: attendee.purchaseDate
+          });
+          
+          console.log("🔄 Synced guest from Stripe:", email, tier);
+        }
+        
+        lastSessionId = sessions.data[sessions.data.length - 1]?.id;
+        hasMore = sessions.has_more;
+      }
+      
+      res.json({
+        success: true,
+        synced: syncedAttendees.length,
+        skipped: skipped.length,
+        attendees: syncedAttendees,
+        skippedDetails: skipped.slice(0, 20) // Return first 20 skipped for info
+      });
+
+    } catch (err) {
+
+      console.error("Sync error:", err);
+      res.status(500).json({ error: "Sync failed: " + err.message });
 
     }
   }
