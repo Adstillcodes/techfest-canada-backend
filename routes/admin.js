@@ -553,19 +553,7 @@ router.post(
             continue;
           }
           
-          // Check if attendee already exists
-          const existingAttendee = await Attendee.findOne({ email, ticketType: tier });
-          
-          if (existingAttendee) {
-            skipped.push({
-              reason: "already_exists",
-              email,
-              tier
-            });
-            continue;
-          }
-          
-          // Create new attendee
+          // Always import from Stripe (no duplicate check - creates new attendee for each purchase)
           const ticketId = crypto.randomBytes(6).toString("hex");
           
           const attendee = new Attendee({
