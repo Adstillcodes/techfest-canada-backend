@@ -1,6 +1,10 @@
 import { ApifyClient } from "apify-client";
 
-const APIFY_TOKEN = process.env.APIFY_API_TOKEN || "apify_api_s2GJagxZ3cBkotSqG6u5w3ioBbUVu80NhRxk";
+const APIFY_TOKEN = process.env.APIFY_API_TOKEN;
+
+if (!APIFY_TOKEN) {
+  throw new Error("APIFY_API_TOKEN environment variable is required");
+}
 
 const client = new ApifyClient({
   token: APIFY_TOKEN,
