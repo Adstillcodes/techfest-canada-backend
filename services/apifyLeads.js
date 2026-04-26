@@ -4,7 +4,7 @@ if (!APIFY_TOKEN) {
   throw new Error("APIFY_API_TOKEN environment variable is required");
 }
 
-const ACTOR_ID = "boneswill/leads-generator";
+const ACTOR_ID = "code_crafter/leads-finder";
 const APIFY_BASE = "https://api.apify.com/v2";
 
 async function generateLeadsFromApify(filters) {
