@@ -1,5 +1,4 @@
-import pkg from 'apify-client';
-const { ApifyClient } = pkg;
+import { ApifyClient } from 'apify-client/browser';
 
 const APIFY_TOKEN = process.env.APIFY_API_TOKEN;
 
