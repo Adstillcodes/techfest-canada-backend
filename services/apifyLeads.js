@@ -1,18 +1,13 @@
-import { ApifyClient } from 'apify-client/browser';
-
 const APIFY_TOKEN = process.env.APIFY_API_TOKEN;
 
 if (!APIFY_TOKEN) {
   throw new Error("APIFY_API_TOKEN environment variable is required");
 }
 
-const client = new ApifyClient({
-  token: APIFY_TOKEN,
-});
-
 const ACTOR_ID = "boneswill/leads-generator";
+const APIFY_BASE = "https://api.apify.com/v2";
 
-export async function generateLeadsFromApify(filters) {
+async function generateLeadsFromApify(filters) {
   const {
     personTitle = [],
     seniority = [],
@@ -53,38 +48,94 @@ export async function generateLeadsFromApify(filters) {
 
   console.log("🎯 Running Apify lead generation with input:", JSON.stringify(input, null, 2));
 
-  const run = await client.actor(ACTOR_ID).call(input);
+  // Step 1: Start the actor run
+  const startResponse = await fetch(
+    `${APIFY_BASE}/acts/${ACTOR_ID}/runs?token=${APIFY_TOKEN}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }
+  );
 
-  if (!run || !run.id) {
+  if (!startResponse.ok) {
+    const errorText = await startResponse.text();
+    throw new Error(`Failed to start Apify actor: ${errorText}`);
+  }
+
+  const run = await startResponse.json();
+
+  if (!run.id) {
     throw new Error("Apify run failed to start");
   }
 
-  const datasetId = run.defaultDatasetId;
+  console.log(`🚀 Apify run started: ${run.id}`);
+
+  // Step 2: Poll for completion
+  let runStatus = run;
+  let attempts = 0;
+  const maxAttempts = 300; // 5 minutes max
+
+  while (runStatus.status !== "SUCCEEDED" && runStatus.status !== "FAILED" && attempts < maxAttempts) {
+    await new Promise((resolve) => setTimeout(resolve, 1000)); // wait 1s
+    attempts++;
+
+    const statusResponse = await fetch(
+      `${APIFY_BASE}/runs/${run.id}?token=${APIFY_TOKEN}`
+    );
+
+    if (!statusResponse.ok) {
+      console.log(`📊 Run status: ${runStatus.status} (attempt ${attempts})`);
+      continue;
+    }
+
+    runStatus = await statusResponse.json();
+    console.log(`📊 Run status: ${runStatus.status} (attempt ${attempts})`);
+  }
+
+  if (runStatus.status === "FAILED") {
+    throw new Error(`Apify run failed: ${runStatus.errorMessage || "Unknown error"}`);
+  }
+
+  if (runStatus.status !== "SUCCEEDED") {
+    throw new Error(`Apify run timed out after ${maxAttempts} seconds`);
+  }
+
+  const datasetId = runStatus.defaultDatasetId;
   if (!datasetId) {
     throw new Error("No dataset returned from Apify");
   }
 
-  const { items } = await client.dataset(datasetId).listItems();
+  // Step 3: Get the data
+  const itemsResponse = await fetch(
+    `${APIFY_BASE}/datasets/${datasetId}/items?token=${APIFY_TOKEN}`
+  );
+
+  if (!itemsResponse.ok) {
+    throw new Error("Failed to retrieve lead data from Apify");
+  }
+
+  const items = await itemsResponse.json();
 
   console.log(`✅ Generated ${items.length} leads from Apify`);
 
   return items;
 }
 
-export function transformApifyLead(apifyLead) {
+function transformApifyLead(apifyLead) {
   const firstName = apifyLead.firstName || "";
   const lastName = apifyLead.lastName || "";
   const leadName = [firstName, lastName].filter(Boolean).join(" ") || "Unknown";
 
   const email = apifyLead.emails?.[0]?.email || "";
   const emailStatus = apifyLead.emails?.[0]?.status || "unknown";
-  
+
   const phone = apifyLead.phones?.[0]?.phoneNumber || "";
-  
+
   const linkedin = apifyLead.linkedinUrl || "";
-  
+
   const company = apifyLead.company || {};
-  
+
   return {
     leadName,
     companyName: company.companyName || apifyLead.companyName || "",
@@ -129,3 +180,5 @@ export function transformApifyLead(apifyLead) {
     company_description: company.description || "",
   };
 }
+
+export { generateLeadsFromApify, transformApifyLead };
