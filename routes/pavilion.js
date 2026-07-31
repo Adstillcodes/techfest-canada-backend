@@ -1,8 +1,10 @@
 import express from "express";
 import { Resend } from "resend";
+import { requireEmailDelivery } from "../services/emailDelivery.js";
 
 const router = express.Router();
 const resend = new Resend(process.env.RESEND_API_KEY);
+const SALES_EMAIL = "sales@thetechfestival.com";
 
 const PROGRAMME_LABELS = {
   speaking: "Speaking opportunity",
@@ -296,23 +298,23 @@ router.post("/pavilion", async (req, res) => {
     }
 
     // Send to sales team
-    await resend.emails.send({
+    requireEmailDelivery(await resend.emails.send({
       from: "TTFC India Pavilion <noreply@thetechfestival.com>",
-      to: "sales@thetechfestival.com",
+      to: SALES_EMAIL,
       replyTo: n.repEmail,
       subject: `India Pavilion Application — ${n.legalName}`,
       html: buildAdminEmail(n),
-    });
+    }), "Pavilion application notification");
 
     // Send confirmation to applicant (non-blocking)
     try {
-      await resend.emails.send({
+      requireEmailDelivery(await resend.emails.send({
         from: "TTFC India Pavilion <noreply@thetechfestival.com>",
         to: n.repEmail,
-        replyTo: "sales@thetechfestival.com",
+        replyTo: SALES_EMAIL,
         subject: `India Pavilion Application Received — ${n.legalName}`,
         html: buildConfirmationEmail(n),
-      });
+      }), "Pavilion application confirmation");
     } catch (confirmErr) {
       console.error("Pavilion confirmation email failed (admin email still sent):", confirmErr);
     }
@@ -344,23 +346,23 @@ router.post("/pavilion/payment-confirmation", async (req, res) => {
     }
 
     // Send notification to sales@
-    await resend.emails.send({
+    requireEmailDelivery(await resend.emails.send({
       from: "TTFC India Pavilion <noreply@thetechfestival.com>",
-      to: "sales@thetechfestival.com",
+      to: SALES_EMAIL,
       replyTo: p.contactEmail,
       subject: `[Pavilion Deposit] $500 received — ${p.companyName}`,
       html: buildPaymentAdminEmail(p),
-    });
+    }), "Pavilion payment notification");
 
     // Send receipt to the applicant (non-blocking)
     try {
-      await resend.emails.send({
+      requireEmailDelivery(await resend.emails.send({
         from: "TTFC India Pavilion <noreply@thetechfestival.com>",
         to: p.contactEmail,
-        replyTo: "sales@thetechfestival.com",
+        replyTo: SALES_EMAIL,
         subject: `Payment Confirmed — India Pavilion Deposit`,
         html: buildPaymentReceiptEmail(p),
-      });
+      }), "Pavilion payment receipt");
     } catch (receiptErr) {
       console.error("Pavilion payment receipt failed (admin notification still sent):", receiptErr);
     }
