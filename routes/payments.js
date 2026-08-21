@@ -25,6 +25,18 @@ async function getUserFromReq(req) {
   return user;
 }
 
+const titleCase = (s) => String(s).charAt(0).toUpperCase() + String(s).slice(1);
+
+/** "booth-single" → "TTFC 2026 Exhibition Booth — Single"
+ *  "apex"         → "TTFC Apex Pass"                        */
+function productNameFor(tier) {
+  const t = String(tier);
+  if (t.startsWith("booth-")) {
+    return `TTFC 2026 Exhibition Booth — ${titleCase(t.replace("booth-", ""))}`;
+  }
+  return `TTFC ${titleCase(t)} Pass`;
+}
+
 // ================= CREATE CHECKOUT =================
 // NOTE: server.js mounts this at /api/payments, so the path here is just /create-checkout
 // Frontend calls: POST /api/payments/create-checkout
@@ -86,7 +98,8 @@ router.post("/create-checkout", async (req, res) => {
     }
 
     // ═══════════════════════════════════════════════════════
-    // BRANCH 2: TICKET TIER PURCHASE (existing flow, unchanged)
+    // BRANCH 2: TIER PURCHASE — delegate passes AND exhibition booths
+    // Booths arrive as tier "booth-single", "booth-double", etc.
     // ═══════════════════════════════════════════════════════
     if (!tier) return res.status(400).json({ error: "Tier required" });
 
@@ -94,18 +107,33 @@ router.post("/create-checkout", async (req, res) => {
     if (!inventoryItem) return res.status(404).json({ error: "Tier not found" });
 
     const basePriceCAD = inventoryItem.price;
+    const isBooth = String(tier).startsWith("booth-");
+
+    // A tier seeded without a price would otherwise create a $0 Stripe session
+    if (!basePriceCAD || basePriceCAD <= 0) {
+      return res.status(409).json({ error: "This tier is not available for purchase yet." });
+    }
+
+    // Don't sell past the allocation (total 0 = unlimited / not yet capped)
+    if (inventoryItem.total > 0 && inventoryItem.sold >= inventoryItem.total) {
+      return res.status(409).json({ error: "This tier is sold out." });
+    }
+
     const stripe = getStripe();
 
     // ===== PROMO CODE HANDLING (with tier check) =====
     let appliedDiscount = 0;
     let appliedPromo = null;
+
     if (promoCode) {
       const code = String(promoCode).trim().toUpperCase();
       const promo = await Promo.findOne({ code, active: true });
+
       if (promo) {
-        // Per-tier scoping: empty tiers array = valid for all passes
+        // Per-tier scoping: empty tiers array = valid for all passes AND booths
         const tiersOk = !Array.isArray(promo.tiers) || promo.tiers.length === 0
           || promo.tiers.includes(String(tier).toLowerCase());
+
         if (tiersOk) {
           appliedDiscount = promo.discount;
           appliedPromo = promo;
@@ -130,15 +158,20 @@ router.post("/create-checkout", async (req, res) => {
       line_items: [{
         price_data: {
           currency: "cad",
-          product_data: { name: `TTFC ${tier} Pass` },
+          product_data: { name: productNameFor(tier) },
           unit_amount: Math.round(basePriceCAD * 100),
         },
         quantity: 1,
       }],
       discounts: discountsArg,
-      success_url: `${process.env.FRONTEND_URL}/tickets?success=true`,
-      cancel_url: `${process.env.FRONTEND_URL}/tickets`,
+      success_url: isBooth
+        ? `${process.env.FRONTEND_URL}/exhibit?success=true`
+        : `${process.env.FRONTEND_URL}/tickets?success=true`,
+      cancel_url: isBooth
+        ? `${process.env.FRONTEND_URL}/exhibit`
+        : `${process.env.FRONTEND_URL}/tickets`,
       metadata: {
+        type: isBooth ? "booth" : "ticket",
         tier,
         promoCode: appliedPromo ? appliedPromo.code : "",
         discount: String(appliedDiscount),
