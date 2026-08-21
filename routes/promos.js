@@ -1,13 +1,29 @@
 import express from "express";
 import Promo from "../models/Promo.js";
+import { PROMO_TIERS } from "../models/Promo.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
-const ALLOWED_TIERS = ["connect", "influence", "power"];
+/* Tiers a code may be scoped to — passes and exhibition booths.
+   An empty scope still means "valid everywhere". */
+const ALLOWED_TIERS = PROMO_TIERS;
+
+const cleanTiers = (input) => {
+  const list = Array.isArray(input) ? input : [];
+  return [...new Set(
+    list
+      .map((t) => String(t).trim().toLowerCase())
+      .filter((t) => ALLOWED_TIERS.includes(t))
+  )];
+};
 
 /* ============ PUBLIC: validate code ============
    Mounted at /api in server.js → full URL: POST /api/promos/validate
+
+   `tier` is optional. Pass "influence", "booth-single", etc. A code with
+   an empty tiers array validates against anything, which is what makes
+   existing site-wide codes work on booths.
 ============================================================ */
 router.post("/promos/validate", async (req, res) => {
   try {
@@ -24,7 +40,7 @@ router.post("/promos/validate", async (req, res) => {
     if (!promo) return res.status(404).json(genericInvalid);
     if (!promo.active) return res.status(400).json(genericInvalid);
 
-    // Tier scoping: empty tiers array = valid for all passes
+    // Tier scoping: empty tiers array = valid for all passes and booths
     if (Array.isArray(promo.tiers) && promo.tiers.length > 0) {
       if (!tier || !promo.tiers.includes(tier)) {
         return res.status(404).json(genericInvalid);
@@ -59,11 +75,7 @@ router.post("/admin/promos", requireAdmin, async (req, res) => {
     if (!code) return res.status(400).json({ error: "Code required" });
     if (!discount || discount < 1 || discount > 100) return res.status(400).json({ error: "Discount must be 1-100" });
 
-    let tiers = Array.isArray(req.body.tiers) ? req.body.tiers : [];
-    tiers = tiers
-      .map(t => String(t).trim().toLowerCase())
-      .filter(t => ALLOWED_TIERS.includes(t));
-    tiers = [...new Set(tiers)];
+    const tiers = cleanTiers(req.body.tiers);
 
     const existing = await Promo.findOne({ code });
     if (existing) return res.status(409).json({ error: "Code already exists" });
@@ -82,13 +94,7 @@ router.put("/admin/promos/:id", requireAdmin, async (req, res) => {
     const update = {};
     if (typeof req.body.active === "boolean") update.active = req.body.active;
     if (typeof req.body.discount === "number") update.discount = req.body.discount;
-
-    if (Array.isArray(req.body.tiers)) {
-      let tiers = req.body.tiers
-        .map(t => String(t).trim().toLowerCase())
-        .filter(t => ALLOWED_TIERS.includes(t));
-      update.tiers = [...new Set(tiers)];
-    }
+    if (Array.isArray(req.body.tiers)) update.tiers = cleanTiers(req.body.tiers);
 
     const promo = await Promo.findByIdAndUpdate(req.params.id, update, { new: true });
     if (!promo) return res.status(404).json({ error: "Not found" });
