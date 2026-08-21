@@ -1,13 +1,26 @@
 import express from "express";
 import Promo from "../models/Promo.js";
-import { PROMO_TIERS } from "../models/Promo.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
 /* Tiers a code may be scoped to — passes and exhibition booths.
-   An empty scope still means "valid everywhere". */
-const ALLOWED_TIERS = PROMO_TIERS;
+   An empty scope still means "valid everywhere".
+
+   Deliberately duplicated from the enum in models/Promo.js rather
+   than imported: a cross-file import means the two files must be
+   deployed together, and pushing one without the other crashes the
+   server on boot. Keep the two lists in sync by hand. */
+const ALLOWED_TIERS = [
+  "connect",
+  "influence",
+  "power",
+  "apex",
+  "booth-single",
+  "booth-double",
+  "booth-triple",
+  "booth-quadruple",
+];
 
 const cleanTiers = (input) => {
   const list = Array.isArray(input) ? input : [];
