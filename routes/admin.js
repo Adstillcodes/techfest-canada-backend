@@ -3,7 +3,6 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Stripe from "stripe";
 import crypto from "crypto";
-
 import User from "../models/User.js";
 import Attendee from "../models/Attendee.js";
 import TicketInventory from "../models/TicketInventory.js";
@@ -18,20 +17,64 @@ function getStripe() {
 }
 
 /* =========================================================
+   🎟️ TIER REGISTRY
+
+   Single source of truth for which tiers must exist and what
+   they're worth when first created. Add a tier here and it
+   appears in the admin table and becomes purchasable on the
+   next request — no migration needed.
+
+   NOTE: the `total` defaults are deliberately NOT zero. The
+   tickets page computes soldOut as (total - sold) <= 0, so a
+   tier seeded with total: 0 renders as SOLD OUT the moment it
+   appears. Set the real allocation in the admin table.
+
+   Prices must match the figures shown on the front end
+   (Tickets.jsx PASS_META and Exhibit.jsx BOOTH_TIERS) — Stripe
+   charges what's stored here, not what the page displays.
+========================================================= */
+const TIER_DEFAULTS = {
+  connect:           { price: 599,  total: 200 },
+  influence:         { price: 799,  total: 200 },
+  power:             { price: 999,  total: 100 },
+  apex:              { price: 1499, total: 50  },
+  "booth-single":    { price: 2499, total: 40  },
+  "booth-double":    { price: 4499, total: 20  },
+  "booth-triple":    { price: 5999, total: 10  },
+  "booth-quadruple": { price: 7499, total: 6   },
+};
+
+async function ensureTiers() {
+  const inventory = await TicketInventory.find();
+
+  for (const [tier, d] of Object.entries(TIER_DEFAULTS)) {
+    if (!inventory.find((i) => i.tier === tier)) {
+      const created = await TicketInventory.create({
+        tier,
+        total: d.total,
+        sold: 0,
+        price: d.price,
+      });
+      console.log("🎟️  Created inventory tier:", tier, `($${d.price})`);
+      inventory.push(created);
+    }
+  }
+
+  return inventory.sort((a, b) => a.tier.localeCompare(b.tier));
+}
+
+/* =========================================================
    🔐 AUTH MIDDLEWARE
 ========================================================= */
-
 const authMiddleware = (req, res, next) => {
   try {
     const header = req.headers.authorization;
-
     if (!header || !header.startsWith("Bearer ")) {
       return res.status(401).json({ error: "No token provided" });
     }
 
     const token = header.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     req.user = decoded;
     next();
   } catch (err) {
@@ -49,21 +92,13 @@ const adminMiddleware = (req, res, next) => {
 /* =========================================================
    📊 SALES ANALYTICS DASHBOARD
    GET /api/admin/analytics?range=day|week|month
-
-   FIX: Actually use the `range` query param to build
-   time-series data for the chart. Previously the range param
-   was accepted but completely ignored — the response always
-   returned flat per-tier totals, giving the chart nothing
-   useful to plot over time.
 ========================================================= */
-
 router.get(
   "/analytics",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-
       const { range = "week" } = req.query;
 
       const inventory = await TicketInventory.find();
@@ -128,12 +163,9 @@ router.get(
         },
         sales,
       });
-
     } catch (err) {
-
       console.error("Analytics error:", err);
       res.status(500).json({ error: "Server error" });
-
     }
   }
 );
@@ -142,7 +174,6 @@ router.get(
    👑 PROMOTE USER TO ADMIN
    POST /api/admin/promote
 ========================================================= */
-
 router.post(
   "/promote",
   authMiddleware,
@@ -172,78 +203,27 @@ router.post(
         success: true,
         message: `${email} is now an admin`,
       });
-
     } catch (err) {
-
       console.error("Promote error:", err);
       res.status(500).json({ error: "Server error" });
-
     }
   }
 );
 
 /* =========================================================
-   🌐 PUBLIC INVENTORY  ← FIX: moved ABOVE /inventory/:tier
+   🌐 PUBLIC INVENTORY  ← must stay ABOVE /inventory/:tier
    GET /api/admin/inventory/public
 
-   FIX: Express matches routes top-to-bottom. Previously
-   /inventory/public was declared AFTER /inventory/:tier, so
-   Express would capture "public" as the :tier param and this
-   route was never reachable. It must be declared first.
+   Express matches routes top-to-bottom. Declared after
+   /inventory/:tier, Express captures "public" as the :tier
+   param and this route is never reachable.
 ========================================================= */
-
 router.get("/inventory/public", async (req, res) => {
   try {
-
-    let inventory = await TicketInventory.find().sort({ tier: 1 });
-
-    const tiers = ["discover", "connect", "influence", "power"];
-
-    const boothTiers = ["booth-single", "booth-double", "booth-triple", "booth-quadruple"];
-
-    for (const tier of tiers) {
-
-      const exists = inventory.find((i) => i.tier === tier);
-
-      if (!exists) {
-
-        const newTier = await TicketInventory.create({
-          tier,
-          total: 0,
-          sold: 0,
-        });
-
-        inventory.push(newTier);
-
-      }
-
-    }
-
-    for (const tier of boothTiers) {
-
-      const exists = inventory.find((i) => i.tier === tier);
-
-      if (!exists) {
-
-        const newTier = await TicketInventory.create({
-          tier,
-          total: 0,
-          sold: 0,
-        });
-
-        inventory.push(newTier);
-
-      }
-
-    }
-
-    res.json(inventory);
-
+    res.json(await ensureTiers());
   } catch (err) {
-
     console.error("Public inventory error:", err);
     res.status(500).json({ error: "Server error" });
-
   }
 });
 
@@ -251,72 +231,24 @@ router.get("/inventory/public", async (req, res) => {
    📊 GET INVENTORY
    GET /api/admin/inventory
 ========================================================= */
-
 router.get(
   "/inventory",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-
-      let inventory = await TicketInventory.find().sort({ tier: 1 });
-
-      const tiers = ["early", "festival", "vip"];
-
-      const boothTiers = ["booth-single", "booth-double", "booth-triple", "booth-quadruple"];
-
-      for (const tier of tiers) {
-
-        const exists = inventory.find((i) => i.tier === tier);
-
-        if (!exists) {
-
-          const newTier = await TicketInventory.create({
-            tier,
-            total: 0,
-            sold: 0,
-          });
-
-          inventory.push(newTier);
-
-        }
-
-      }
-
-      for (const tier of boothTiers) {
-
-        const exists = inventory.find((i) => i.tier === tier);
-
-        if (!exists) {
-
-          const newTier = await TicketInventory.create({
-            tier,
-            total: 0,
-            sold: 0,
-          });
-
-          inventory.push(newTier);
-
-        }
-
-      }
-
-      res.json(inventory);
-
+      res.json(await ensureTiers());
     } catch (err) {
-
       console.error("Inventory fetch error:", err);
       res.status(500).json({ error: "Server error" });
-
     }
   }
 );
 
 /* =========================================================
-   ✏️ UPDATE INVENTORY TOTAL
+   ✏️ UPDATE INVENTORY TOTAL / PRICE
    PUT /api/admin/inventory/:tier
 ========================================================= */
-
 router.put(
   "/inventory/:tier",
   authMiddleware,
@@ -356,7 +288,6 @@ router.put(
         success: true,
         inventory
       });
-
     } catch (err) {
       console.error("Inventory update error:", err);
       res.status(500).json({ error: "Server error" });
@@ -368,26 +299,21 @@ router.put(
     👥 GET ATTENDEES
     GET /api/admin/attendees
 ========================================================= */
-
 router.get(
   "/attendees",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-
       const attendees = await Attendee.find({})
         .select("name email ticketId ticketType purchaseDate checkedIn")
         .sort({ purchaseDate: -1 })
         .lean();
 
       res.json(attendees);
-
     } catch (err) {
-
       console.error("Attendees fetch error:", err);
       res.status(500).json({ error: "Server error" });
-
     }
   }
 );
@@ -396,14 +322,12 @@ router.get(
     📷 QR CHECK-IN
     POST /api/admin/checkin
 ========================================================= */
-
 router.post(
   "/checkin",
   authMiddleware,
   adminMiddleware,
   async (req, res) => {
     try {
-
       const { ticketId } = req.body;
 
       if (!ticketId) {
@@ -435,7 +359,7 @@ router.post(
           ticketId: ticket.ticketId,
           type: ticket.type,
         });
-        
+
         return;
       }
 
@@ -461,12 +385,9 @@ router.post(
         ticketId: attendee.ticketId,
         type: attendee.ticketType,
       });
-
     } catch (err) {
-
-console.error("Check-in error:", err);
+      console.error("Check-in error:", err);
       res.status(500).json({ error: "Server error" });
-
     }
   }
 );
@@ -475,7 +396,6 @@ console.error("Check-in error:", err);
     🔄 SYNC GUESTS FROM STRIPE
     POST /api/admin/sync-guests-from-stripe
 ========================================================= */
-
 router.post(
   "/sync-guests-from-stripe",
   authMiddleware,
@@ -483,37 +403,40 @@ router.post(
   async (req, res) => {
     try {
       const stripe = getStripe();
-      
+
       const syncedAttendees = [];
       const skipped = [];
-      
+
       // Fetch all completed checkout sessions (pagination: 100 at a time)
       let hasMore = true;
       let lastSessionId = null;
-      
+
       while (hasMore) {
         const params = {
           limit: 100,
           status: "complete",
         };
-        
+
         if (lastSessionId) {
           params.starting_after = lastSessionId;
         }
-        
+
         const sessions = await stripe.checkout.sessions.list(params);
-        
+
         for (const session of sessions.data) {
           // Skip if not a ticket purchase
           const purchaseType = session.metadata?.type;
           if (purchaseType === "booth") continue;
-          
+
           const tier = session.metadata?.tier;
           if (!tier) continue;
-          
+
+          // Booth purchases are exhibitors, not delegates — no pass to issue
+          if (String(tier).startsWith("booth-")) continue;
+
           const email = session.customer_details?.email;
           const name = session.customer_details?.name || "Guest";
-          
+
           if (!email) {
             skipped.push({
               reason: "no_email",
@@ -522,20 +445,27 @@ router.post(
             });
             continue;
           }
-          
-          // Always import from Stripe - import all ticket purchases (both guests and logged-in users)
+
+          // Don't re-import a session we've already turned into an attendee
+          const already = await Attendee.findOne({ stripeSessionId: session.id });
+          if (already) {
+            skipped.push({ reason: "already_imported", sessionId: session.id, tier });
+            continue;
+          }
+
           const ticketId = crypto.randomBytes(6).toString("hex");
-          
+
           const attendee = new Attendee({
             name,
             email,
             ticketId,
             ticketType: tier,
-            purchaseDate: new Date(session.created * 1000)
+            purchaseDate: new Date(session.created * 1000),
+            stripeSessionId: session.id,
           });
-          
+
           await attendee.save();
-          
+
           syncedAttendees.push({
             name,
             email,
@@ -543,14 +473,14 @@ router.post(
             ticketType: tier,
             purchaseDate: attendee.purchaseDate
           });
-          
+
           console.log("🔄 Synced guest from Stripe:", email, tier);
         }
-        
+
         lastSessionId = sessions.data[sessions.data.length - 1]?.id;
         hasMore = sessions.has_more;
       }
-      
+
       res.json({
         success: true,
         synced: syncedAttendees.length,
@@ -558,12 +488,9 @@ router.post(
         attendees: syncedAttendees,
         skippedDetails: skipped.slice(0, 20) // Return first 20 skipped for info
       });
-
     } catch (err) {
-
       console.error("Sync error:", err);
       res.status(500).json({ error: "Sync failed: " + err.message });
-
     }
   }
 );
